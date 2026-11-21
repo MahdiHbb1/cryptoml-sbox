@@ -52,12 +52,13 @@ def test_extract_fast_features_default_is_deterministic_and_finite():
 
 def test_train_and_evaluate_xgboost_learns_signal_from_sbox_features():
     rng = np.random.default_rng(42)
-    X = rng.normal(size=(120, 8))
-    y = 3.0 * X[:, 0] - 2.0 * X[:, 1] + 0.5 * X[:, 2] + rng.normal(scale=0.1, size=120)
+    X = rng.normal(size=(250, 8))
+    y = 3.0 * X[:, 0] - 2.0 * X[:, 1] + 0.5 * X[:, 2] + rng.normal(scale=0.1, size=250)
 
     model, metrics = train_and_evaluate_xgboost(X, y, random_state=42, tune=False)
-    assert metrics["r2"] > 0.75
-    assert metrics["mae"] < 0.8
+    baseline_mae = float(np.mean(np.abs(y - np.mean(y))))
+    assert metrics["r2"] > 0.85
+    assert metrics["mae"] < 0.35 * baseline_mae
     assert metrics["rmse"] >= metrics["mae"]
     assert metrics["train_time_sec"] >= 0.0
     assert len(metrics["feature_importances"]) == 8
