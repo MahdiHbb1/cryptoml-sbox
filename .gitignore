@@ -24,3 +24,5 @@ data/sbox_dataset.csv
 Thumbs.db
 .vscode/
 .idea/
+.archify/
+.impeccable/
