@@ -84,7 +84,7 @@ def generate_chaotic_swap_candidates(
     return candidates
 
 
-def _resolve_evaluator() -> Callable[[np.ndarray], dict]:
+def resolve_evaluator() -> Callable[[np.ndarray], dict]:
     try:
         from src.sbox_metrics import evaluate_sbox
     except ImportError:
@@ -112,7 +112,7 @@ def build_sbox_dataset(
             avoid_fixed_points=False,
         )
     )
-    evaluator = evaluate_fn or _resolve_evaluator()
+    evaluator = evaluate_fn or resolve_evaluator()
     rows: list[dict] = []
 
     for index, candidate in enumerate(candidates):

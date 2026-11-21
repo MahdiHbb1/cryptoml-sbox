@@ -70,6 +70,15 @@ Perintah menghasilkan `data/sbox_dataset.csv` berisi 1.500 kandidat bijektif dar
 `chaotic_swap` dan `aes_affine`, 40 fitur cepat, serta target metrik untuk model ML.
 File CSV diabaikan Git karena dapat dibangun ulang dengan `--seed 42`.
 
+### Melatih Random Forest (Yafi — Issue #5)
+
+```bash
+python -m src.train_rf --n-screen 2000 --top-k 25
+```
+
+Perintah menyimpan pemenang ke `results/sbox_rf.npy` dan metrik model beserta
+peringkat *feature importance* ke `results/rf_metrics.json`.
+
 ### Aturan Git & Kolaborasi
 1. **Jangan push langsung ke `main`** untuk kode yang belum selesai. Selalu buat/pindah ke branch masing-masing:
    ```bash
