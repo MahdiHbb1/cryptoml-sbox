@@ -66,4 +66,17 @@ def test_pipeline_uses_this_module():
     assert resolve_evaluator() is evaluate_sbox
 
 
-# TODO: tes K44 (nl=112, du=4, sac_mean≈0.50073) setelah tabel dari paper dimasukkan.
+def test_k44_alamsyah():
+    """Validasi baseline S-Box44 (K44 Alamsyah et al.) sesuai ARCHITECTURE_CONTRACT.md."""
+    from src.aes_affine_generator import build_k44_sbox
+
+    k44 = build_k44_sbox()
+    r = evaluate_sbox(k44)
+    assert r["bijective"] and r["balanced"]
+    assert r["nl"] == 112 and r["bic_nl"] == 112
+    assert r["du"] == 4
+    assert r["dap"] == pytest.approx(0.015625)
+    assert r["lap"] == pytest.approx(0.0625)
+    assert r["sac_mean"] == pytest.approx(0.50073, abs=1e-4)
+    assert r["bic_sac"] == pytest.approx(0.50237, abs=1e-4)
+    assert r["fixed_points"] == 1
