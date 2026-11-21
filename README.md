@@ -23,26 +23,42 @@ Detail lengkap alur kerja dan kontrak antarmuka modul ada di:
 cryptoml-sbox/
 ├── README.md
 ├── requirements.txt
+├── app.py                         # Aplikasi web interaktif Streamlit (3 halaman)
+├── .streamlit/config.toml         # Konfigurasi tema web Streamlit
+├── assets/
+│   └── cryptoml_sbox_archify.html # Diagram arsitektur & alur sistem interaktif (Archify)
 ├── data/
 │   └── mandril_color.jpg          # Citra uji standar Mandrill (512x512 RGB)
 ├── docs/
 │   ├── ARCHITECTURE_CONTRACT.md   # Kontrak format data & tanda tangan fungsi antar modul
 │   └── PEMBAGIAN_JOBDESK.md       # Rincian tugas per anggota dan urutan fase kerja
+├── notebooks/
+│   └── Mahdi_XGBoost_SBox_Colab_Kaggle.ipynb
 ├── src/                           # Modul Python tiap anggota tim
-├── tests/                         # Unit test validasi AES Standar, K44, & lossless cipher
+├── tests/                         # Unit test validasi AES Standar, K44, XGBoost, & web helper
 └── results/
+    ├── sbox_xgb.npy               # S-Box terpilih XGBoost (0x13F, C=0x02)
+    ├── xgb_metrics.json           # Log metrik pelatihan & penyaringan Kaggle
     └── experiment_log.md          # Tabel pelacakan metrik ML, Metrik 1, Metrik 2 & 3
 ```
 
 ---
 
-## Cara Mulai di Laptop Masing-Masing
+## Cara Menjalankan Aplikasi Web (Streamlit)
 
 ```bash
 git clone https://github.com/MahdiHbb1/cryptoml-sbox.git
 cd cryptoml-sbox
 pip install -r requirements.txt
+streamlit run app.py
 ```
+
+Aplikasi web terdiri dari 3 halaman utama:
+1. **Ringkasan Proyek** — Penjelasan sederhana untuk umum/dosen, pratinjau enkripsi Mandrill langsung, tabel & grafik perbandingan Metrik 1 (otomatis mendeteksi `sbox_rf.npy` & `sbox_mlp.npy` saat di-merge), serta progres 4 anggota tim.
+2. **Diagram Alur & Arsitektur (Archify)** — Diagram node interaktif dengan 3 *Guided Views*, referensi langsung ke baris kode GitHub, toggle *Light/Dark*, *Live/Still*, serta ekspor PNG/SVG.
+3. **Simulasi Langsung** — Inspeksi & pembangkit S-Box GF(2^8) baru (tabel 16×16 + heatmap SAC 8×8), simulasi enkripsi-dekripsi citra Mandrill/unggah sendiri (Entropy, Histogram, NPCR, UACI, *lossless*), serta simulasi enkripsi-dekripsi teks AES-128.
+
+### Cara Mulai Pengembangan di Laptop Masing-Masing
 
 ### Aturan Git & Kolaborasi
 1. **Jangan push langsung ke `main`** untuk kode yang belum selesai. Selalu buat/pindah ke branch masing-masing:
