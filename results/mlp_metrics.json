@@ -1,0 +1,38 @@
+{
+  "dataset_origin": "data\\sbox_dataset.csv",
+  "n_features": 40,
+  "n_screen_candidates": 2000,
+  "top_k_evaluated": 25,
+  "screen_time_sec": 4.591917300014757,
+  "ml_metrics": {
+    "r2": 0.9244569487543185,
+    "mae": 10.382480937427408,
+    "rmse": 19.066501700680224,
+    "train_time_sec": 2.3145793000003323,
+    "n_train": 1200,
+    "n_test": 300,
+    "hidden_layer_sizes": [
+      128,
+      64
+    ],
+    "n_iter": 60,
+    "final_loss": 0.012867914138656495
+  },
+  "selected_sbox_source": "aes_affine",
+  "selected_sbox_score": 125.81715421276083,
+  "selected_sbox_predicted_score": 125.12394367895155,
+  "selected_sbox_metrics": {
+    "bijective": true,
+    "balanced": true,
+    "nl": 112,
+    "sac_mean": 0.49951171875,
+    "sac_max_err": 0.046875,
+    "bic_nl": 112,
+    "bic_sac": 0.49951171875,
+    "du": 4,
+    "dap": 0.015625,
+    "lap": 0.0625,
+    "fixed_points": 0,
+    "whs_cost": 10.473321994783541
+  }
+}

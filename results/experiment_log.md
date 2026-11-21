@@ -8,7 +8,7 @@ Catat setiap hasil eksperimen tim di tabel ini agar progres terekam rapi di GitH
 | :--- | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
 | 2026-11-21 | XGBoost *(Kaggle tuned)* | Mahdi | 40 fitur cepat, `n=1500` (1200 train / 300 test), saring `15.000` kandidat (`top-40`, `17,94s`) | 0.9149 | 8.7212 | 16.8364 | 6.99 | `RandomizedSearchCV` (`n_estimators=150, max_depth=6, lr=0.03, subsample=0.8, colsample=0.8`); siap diulang begitu `sbox_dataset.csv` final dari Yafi tersedia |
 | 2026-11-21 | Random Forest | Yafi | 40 fitur cepat, `n=1500` (1200 train / 300 test), saring `2.000` kandidat (`top-25`, `4,86s`) | 0.9352 | 9.5576 | 17.6609 | 1.20 | `RandomForestRegressor(n_estimators=300, random_state=42)`; fitur terpenting: `f_33`, `f_12`, `f_31`, `f_36`, `f_29` |
-| - | MLP (`StandardScaler`) | Naila | - | - | - | - | - | Menunggu `train_mlp.py` |
+| 2026-11-21 | MLP (`StandardScaler` + target scaling) | Naila | 40 fitur cepat, `n=1500` (1200 train / 300 test), saring 2.000 kandidat (top-25, 4,59s) | 0.9245 | 10.3825 | 19.0665 | 2.31 | `MLPRegressor(128,64)`, relu, adam, alpha=1e-3, early stopping (n_iter=60) |
 
 ---
 
@@ -20,7 +20,7 @@ Catat setiap hasil eksperimen tim di tabel ini agar progres terekam rapi di GitH
 | K44 Alamsyah *(Baseline)* | Yes | 112 | 0.50073 | 0.06250 | 112 | 0.50237 | 4 | 0.015625 | 0.0625 | 1 |
 | S-Box XGBoost (Mahdi, `0x13F`, `C=0x02`) | Yes | 112 | 0.50024 | 0.04688 | 112 | 0.50077 | 4 | 0.015625 | 0.0625 | 0 |
 | S-Box Random Forest (Yafi) | Yes | 112 | 0.49976 | 0.04688 | 112 | 0.50028 | 4 | 0.015625 | 0.0625 | 0 |
-| S-Box MLP (Naila) | - | - | - | - | - | - | - | - | - | - |
+| S-Box MLP (Naila, `aes_affine`) | Yes | 112 | 0.49951 | 0.04688 | 112 | 0.49951 | 4 | 0.015625 | 0.0625 | 0 |
 
 ---
 
