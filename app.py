@@ -118,6 +118,11 @@ h1, h2, h3, .display-title {
   font-family: 'Bricolage Grotesque', sans-serif !important;
   color: var(--ink) !important;
   letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+p, .lead-copy, .section-sub, .step-body {
+  text-wrap: pretty;
 }
 
 code, pre, .mono-val {
@@ -538,6 +543,34 @@ def load_catalog_and_metrics() -> tuple[dict[str, dict], pd.DataFrame]:
 
 
 @st.cache_data(show_spinner=False)
+def load_all_ml_summaries() -> pd.DataFrame:
+    entries = [
+        ("Random Forest", "Yafi (@twizzcode)", RESULTS_DIR / "rf_metrics.json"),
+        ("XGBoost (Tuned)", "Mahdi (@MahdiHbb1)", RESULTS_DIR / "xgb_metrics.json"),
+        ("MLP (StandardScaler)", "Naila (@NAILAAR22)", RESULTS_DIR / "mlp_metrics.json"),
+    ]
+    rows = []
+    for model_name, owner, path in entries:
+        if not path.exists():
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
+        ml = data.get("ml_metrics", {})
+        rows.append(
+            {
+                "Model ML": model_name,
+                "Pengembang": owner,
+                "Dataset": f"{ml.get('n_train', 0)} latih / {ml.get('n_test', 0)} uji",
+                "R² (Test)": round(float(ml.get("r2", 0.0)), 4),
+                "MAE": round(float(ml.get("mae", 0.0)), 4),
+                "RMSE": round(float(ml.get("rmse", 0.0)), 4),
+                "Waktu Latih (detik)": round(float(ml.get("train_time_sec", 0.0)), 2),
+                "Kandidat Disaring": f"{int(data.get('n_screen_candidates', 0)):,} (Top-{int(data.get('top_k_evaluated', 0))})",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+@st.cache_data(show_spinner=False)
 def load_xgb_summary() -> dict:
     if XGB_METRICS_PATH.exists():
         return json.loads(XGB_METRICS_PATH.read_text(encoding="utf-8"))
@@ -591,7 +624,7 @@ def render_comparison_chart(df_metrics: pd.DataFrame):
 
     y_pos = np.arange(len(labels))
     for ax, vals, title, fmt in [
-        (axes[0], sac_err, "Deviasi Maksimum SAC  |P - 0.5|  (lebih kecil lebih baik)", "{:.5f}"),
+        (axes[0], sac_err, "Deviasi Maksimum SAC  |P − 0.5|  (lebih kecil lebih baik)", "{:.5f}"),
         (axes[1], bic_dev, "Jarak BIC-SAC ke Ideal 0.5  (lebih kecil lebih baik)", "{:.5f}"),
     ]:
         ax.set_facecolor("#FFFFFF")
@@ -634,7 +667,7 @@ def render_sac_heatmap(sac_mat: np.ndarray):
     ax.set_yticklabels([f"in{i}" for i in range(8)], fontsize=8.5, family="monospace")
     ax.set_xlabel("Bit Output", fontsize=9.5, color="#344450", labelpad=6)
     ax.set_ylabel("Bit Input Dibalik", fontsize=9.5, color="#344450", labelpad=6)
-    ax.set_title("Matriks SAC 8x8 (Ideal = 0.500)", fontsize=10.5, fontweight="bold", color="#141D24", pad=10)
+    ax.set_title("Matriks SAC 8×8 (Nilai Ideal = 0.500)", fontsize=10.5, fontweight="bold", color="#141D24", pad=10)
 
     for r in range(8):
         for c in range(8):
@@ -678,7 +711,7 @@ def render_histogram_comparison(plain: np.ndarray, cipher: np.ndarray):
             ax.plot(np.arange(256), counts, color="#0F5C5C", linewidth=1.1)
 
         ax.set_xlim(0, 255)
-        ax.set_xlabel("Intensitas Piksel (0-255)", fontsize=8.8, color="#344450")
+        ax.set_xlabel("Intensitas Piksel (0–255)", fontsize=8.8, color="#344450")
         ax.set_ylabel("Frekuensi", fontsize=8.8, color="#344450")
         ax.set_title(title, fontsize=10, fontweight="bold", color="#141D24", loc="left", pad=8)
         ax.grid(axis="y", linestyle="--", linewidth=0.5, color="#E1E8EE")
@@ -711,11 +744,11 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
         st.markdown(
             '<h1 class="lead-title">Merancang S-Box AES Lebih Kuat dengan Machine Learning</h1>'
             '<p class="lead-copy">'
-            'Di dalam enkripsi <strong>AES-128</strong>, <strong>S-Box</strong> adalah tabel pengacak '
-            '256 angka yang menjaga data tetap rahasia. Alih-alih menguji kandidat satu per satu secara lambat, '
-            'sistem kami melatih <strong>XGBoost</strong>, <strong>Random Forest</strong>, dan <strong>MLP</strong> '
-            'pada dataset bersama untuk menyaring ribuan kandidat S-Box secara cepat lalu membuktikan ketahanannya '
-            'langsung pada enkripsi citra <strong>Mandrill</strong>.'
+            'Di dalam algoritma <strong>AES-128</strong>, <strong>S-Box</strong> berperan sebagai tabel pengacak '
+            '256 nilai yang menjadi inti keamanan enkripsi. Alih-alih menguji kandidat secara manual yang memakan waktu, '
+            'sistem ini melatih <strong>XGBoost</strong>, <strong>Random Forest</strong>, dan <strong>MLP</strong> '
+            'pada dataset bersama untuk menyaring ribuan kandidat S-Box secara cepat, lalu membuktikan ketahanannya '
+            'langsung pada enkripsi citra digital <strong>Mandrill</strong>.'
             '</p>',
             unsafe_allow_html=True,
         )
@@ -748,10 +781,10 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
                 use_container_width=True,
             )
         st.markdown(
-            '<div style="font-size:0.88rem; color:#465664; margin-top:0.35rem; line-height:1.5;">'
-            'Pratinjau di atas dienkripsi secara nyata oleh mesin <code class="mono-val">aes_cipher_runner.py</code> '
-            f'memakai S-Box terpilih XGBoost (<code class="mono-val">poly={xgb_poly}, C={xgb_const}, Fixed Points={xgb_m["fixed_points"]}</code>). '
-            'Dekripsi mengembalikan setiap piksel identik 100%.'
+            '<div style="font-size:0.88rem; color:#465664; margin-top:0.35rem; line-height:1.55;">'
+            'Pratinjau di atas dienkripsi secara langsung oleh mesin AES-128 (<code class="mono-val">aes_cipher_runner.py</code>) '
+            f'menggunakan S-Box terpilih XGBoost (<code class="mono-val">poly={xgb_poly}, C={xgb_const}, Fixed Points={xgb_m["fixed_points"]}</code>). '
+            'Proses dekripsi mengembalikan seluruh piksel secara identik (100% lossless).'
             '</div></div>',
             unsafe_allow_html=True,
         )
@@ -766,7 +799,7 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
         f'<div class="stat-item-note">Max Err {xgb_m["sac_max_err"]:.5f} (25% lebih ketat dari AES &amp; K44)</div></div>'
         '<div class="stat-item"><div class="stat-item-label">Entropi Citra Mandrill</div>'
         '<div class="stat-item-value">7.99978</div>'
-        '<div class="stat-item-note">Dari 7.76244 menuju ideal 8.000 bit (512×512 CBC2)</div></div>'
+        '<div class="stat-item-note">Naik dari 7.76244 menuju ideal 8.000 bit (512×512 CBC2)</div></div>'
         '<div class="stat-item"><div class="stat-item-label">Difusi NPCR &amp; UACI</div>'
         '<div class="stat-item-value">99.62%</div>'
         '<div class="stat-item-note">UACI 33.46% · Dekripsi 100% Lossless</div></div>'
@@ -778,22 +811,22 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
     st.markdown(
         '<h2 class="section-heading">Bagaimana Sistem Ini Bekerja dalam 3 Langkah</h2>'
         '<p class="section-sub">Dirancang agar mudah dipahami tanpa latar belakang kriptografi mendalam, '
-        'sekaligus tetap ketat terhadap seluruh metrik uji standar.</p>'
+        'sekaligus tetap ketat terhadap seluruh metrik pengujian kriptografi standar.</p>'
         '<div class="step-row">'
         f'<div class="step-col"><div class="step-head">{SVG_GRID}'
         '<h3 class="step-title">1. Bangkitkan Ribuan Kandidat</h3></div>'
-        '<p class="step-body">Program menghasilkan kandidat S-Box bijektif (angka 0–255 unik tanpa duplikat) '
-        'dari dua jalur: variasi 30 polinomial <em>irreducible</em> GF(2⁸) + matriks <em>affine</em> invertibel, '
-        'serta jalur Non-AES berbasis <em>chaotic map</em>.</p></div>'
+        '<p class="step-body">Sistem membangkitkan kandidat S-Box bijektif (angka 0–255 unik tanpa duplikasi) '
+        'dari dua jalur: variasi 30 polinomial <em>irreducible</em> GF(2⁸) dengan matriks <em>affine</em> invertibel, '
+        'serta jalur Non-AES berbasis <em>chaotic map</em> dan pertukaran elemen.</p></div>'
         f'<div class="step-col"><div class="step-head">{SVG_SLIDERS}'
         '<h3 class="step-title">2. Saring Cepat dengan Machine Learning</h3></div>'
-        '<p class="step-body">Setiap S-Box diekstrak menjadi 40 fitur cepat (~0,7 ms/S-Box). '
-        'Model <strong>Random Forest</strong> (R²=0,9352), <strong>XGBoost</strong> (R²=0,9338), dan <strong>MLP</strong> (R²=0,9245) '
-        'dilatih pada dataset yang sama (n=1.500) lalu menyaring kandidat hingga tersisa Top-25 untuk diuji penuh.</p></div>'
+        '<p class="step-body">Setiap S-Box diringkas menjadi 40 fitur cepat (&lt;1 milidetik per S-Box). '
+        'Model <strong>Random Forest</strong> (R² = 0.9352), <strong>XGBoost</strong> (R² = 0.9338), dan <strong>MLP</strong> (R² = 0.9245) '
+        'dilatih pada dataset bersama (n = 1.500), lalu menyaring 2.000 kandidat hingga tersisa Top-25 untuk dievaluasi penuh.</p></div>'
         f'<div class="step-col"><div class="step-head">{SVG_SHIELD}'
         '<h3 class="step-title">3. Buktikan pada AES-128 &amp; Mandrill</h3></div>'
-        '<p class="step-body">S-Box pemenang dipasang langsung ke AES-128 mode <code>CBC2</code> (difusi 2 arah) '
-        'untuk mengenkripsi citra Mandrill 512×512. Hasil diukur melalui Entropi, Histogram, NPCR, UACI, '
+        '<p class="step-body">S-Box terpilih dipasang langsung ke AES-128 mode <code>CBC2</code> (difusi dua arah) '
+        'untuk mengenkripsi citra Mandrill 512×512. Ketahanannya dibuktikan lewat Entropi, Histogram, NPCR, UACI, '
         'dan verifikasi dekripsi <em>lossless</em>.</p></div>'
         '</div>',
         unsafe_allow_html=True,
@@ -802,8 +835,9 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
     # Live Benchmark Comparison Table & Chart
     st.markdown(
         '<h2 class="section-heading">Perbandingan Kualitas S-Box (Metrik 1)</h2>'
-        '<p class="section-sub">Tabel dan grafik berikut dihitung langsung dari artefak <code>.npy</code> '
-        'di repositori. Saat S-Box Random Forest (Yafi) dan MLP (Naila) di-merge, tabel ini otomatis bertambah.</p>',
+        '<p class="section-sub">Seluruh nilai pada tabel dan grafik di bawah ini dihitung secara langsung dari artefak '
+        '<code>.npy</code> di repositori memakai evaluator Metrik 1 (<code>src/sbox_metrics.py</code>). '
+        'Ketiga S-Box hasil Machine Learning berhasil mengungguli baseline AES Standar dan K44 Alamsyah.</p>',
         unsafe_allow_html=True,
     )
 
@@ -818,14 +852,19 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
     st.pyplot(chart_fig, use_container_width=True)
     plt.close(chart_fig)
 
-    if xgb_summary:
-        ml = xgb_summary.get("ml_metrics", {})
-        st.caption(
-            f"Log Pelatihan Kaggle (XGBoost Tuned): R² = {ml.get('r2', 0):.4f} | "
-            f"MAE = {ml.get('mae', 0):.4f} | RMSE = {ml.get('rmse', 0):.4f} | "
-            f"Waktu latih = {ml.get('train_time_sec', 0):.2f} dtk | "
-            f"Penyaringan {xgb_summary.get('n_screen_candidates', 0):,} kandidat = "
-            f"{xgb_summary.get('screen_time_sec', 0):.2f} dtk."
+    df_ml = load_all_ml_summaries()
+    if not df_ml.empty:
+        st.markdown(
+            '<h2 class="section-heading">Perbandingan Performa 3 Model Machine Learning</h2>'
+            '<p class="section-sub">Ketiga model dilatih dan diuji secara <em>apple-to-apple</em> pada dataset bersama '
+            '<code>data/sbox_dataset.csv</code> (750 <em>chaotic swap</em> + 750 <em>AES-affine</em>, <code>random_state=42</code>).</p>',
+            unsafe_allow_html=True,
+        )
+        st.dataframe(
+            df_ml,
+            use_container_width=True,
+            hide_index=True,
+            height=38 * len(df_ml) + 42,
         )
 
     # Team ledger
@@ -887,9 +926,9 @@ def render_page_architecture():
     with bar_left:
         st.markdown(
             '<div class="guide-bar">'
-            '<span><strong>Tips Eksplorasi:</strong> Klik <strong>node</strong> untuk membuka tautan kode GitHub · '
-            'Pilih <strong>Views (1–3)</strong> untuk fokus tahap tertentu · Gunakan <strong>Light/Dark</strong>, '
-            '<strong>Live/Still</strong>, atau <strong>Export PNG/SVG</strong>.</span>'
+            '<span><strong>Cara membaca diagram:</strong> klik <strong>node</strong> untuk membuka baris kode GitHub terkait · '
+            'pilih <strong>Views (1–3)</strong> untuk menyorot tahap tertentu · gunakan tombol <strong>Light/Dark</strong>, '
+            '<strong>Live/Still</strong>, atau <strong>Export PNG/SVG</strong> di pojok kanan atas diagram.</span>'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -939,7 +978,7 @@ def render_sim_sbox_tab(catalog: dict[str, dict]):
         "Sumber S-Box",
         [
             "Katalog Proyek (AES, K44, ML)",
-            "Bangkitkan S-Box GF(2^8) Baru",
+            "Bangkitkan S-Box GF(2⁸) Baru",
             "Unggah File S-Box (.npy / .csv)",
         ],
         horizontal=True,
@@ -961,7 +1000,7 @@ def render_sim_sbox_tab(catalog: dict[str, dict]):
             f"{entry.get('notes', '')}"
         )
 
-    elif source_mode == "Bangkitkan S-Box GF(2^8) Baru":
+    elif source_mode == "Bangkitkan S-Box GF(2⁸) Baru":
         g1, g2, g3 = st.columns([1.4, 1.0, 1.0], vertical_alignment="bottom")
         poly_options = ["Acak (30 Polinomial)"] + [f"0x{p:03X}" for p in IRREDUCIBLE_POLYS_GF256]
         with g1:
@@ -1065,7 +1104,7 @@ def render_sim_sbox_tab(catalog: dict[str, dict]):
             )
         with dl2:
             st.download_button(
-                "Unduh Tabel 16x16 (.csv)",
+                "Unduh Tabel 16×16 (.csv)",
                 data=csv_text.encode("utf-8"),
                 file_name="sbox_16x16.csv",
                 mime="text/csv",
@@ -1086,9 +1125,9 @@ def render_sim_sbox_tab(catalog: dict[str, dict]):
 def render_sim_image_tab(catalog: dict[str, dict]):
     st.markdown(
         '<p class="section-sub" style="margin-top:0.2rem;">'
-        'Uji langsung enkripsi &amp; dekripsi citra <strong>Mandrill</strong> atau foto Anda sendiri '
-        'memakai AES-128 custom S-Box. Sistem otomatis menghitung Entropy, Histogram, NPCR, UACI '
-        '(perubahan 1 bit pada piksel terakhir), dan verifikasi lossless.</p>',
+        'Uji langsung enkripsi dan dekripsi citra <strong>Mandrill</strong> atau gambar Anda sendiri '
+        'memakai AES-128 custom S-Box. Sistem otomatis menghitung Entropi, Histogram, Uji Chi-Square, NPCR, UACI '
+        '(dari perubahan 1 bit pada piksel terakhir), serta memverifikasi dekripsi <em>lossless</em>.</p>',
         unsafe_allow_html=True,
     )
 
@@ -1108,7 +1147,7 @@ def render_sim_image_tab(catalog: dict[str, dict]):
     with c4:
         res_label = st.selectbox(
             "Resolusi Simulasi",
-            ["256×256 (Cepat ~0.8 dtk)", "128×128 (Instan)", "512×512 (Penuh ~3.2 dtk)"],
+            ["256×256 (Cepat ~0.8 detik)", "128×128 (Instan)", "512×512 (Penuh ~3.2 detik)"],
             key="img_res",
         )
 
@@ -1122,7 +1161,7 @@ def render_sim_image_tab(catalog: dict[str, dict]):
     with key_col:
         key_text = st.text_input("Kunci AES-128 (16 karakter UTF-8)", value="CryptoML-SBox26!", key="img_key")
     with iv_col:
-        iv_text = st.text_input("Initialization Vector / IV (16 kar)", value="UNNES-Kripto2026", key="img_iv")
+        iv_text = st.text_input("Initialization Vector / IV (16 karakter)", value="UNNES-Kripto2026", key="img_iv")
 
     uploaded_img = None
     if img_source == "Unggah Gambar Sendiri":
@@ -1178,7 +1217,7 @@ def render_sim_image_tab(catalog: dict[str, dict]):
             f'<div class="verify-ok">{SVG_CHECK}'
             f'<span>Dekripsi 100% Lossless ({payload["sbox_name"]} · Mode {mode_used} · '
             f'Resolusi {sim["plain"].shape[1]}×{sim["plain"].shape[0]} · '
-            f'Enkripsi {sim["encrypt_sec"]:.2f} dtk / Dekripsi {sim["decrypt_sec"]:.2f} dtk)</span></div>',
+            f'Enkripsi {sim["encrypt_sec"]:.2f} detik · Dekripsi {sim["decrypt_sec"]:.2f} detik)</span></div>',
             unsafe_allow_html=True,
         )
     else:
@@ -1255,9 +1294,9 @@ def render_sim_text_tab(catalog: dict[str, dict]):
     with t2:
         mode = st.selectbox("Mode AES", ["CBC2", "CBC", "ECB"], key="txt_mode")
     with t3:
-        key_str = st.text_input("Kunci (16 kar UTF-8)", value="KunciRahasia2026", key="txt_key")
+        key_str = st.text_input("Kunci (16 karakter UTF-8)", value="KunciRahasia2026", key="txt_key")
     with t4:
-        iv_str = st.text_input("IV (16 kar UTF-8)", value="VectorAwal2026!!", key="txt_iv")
+        iv_str = st.text_input("IV (16 karakter UTF-8)", value="VectorAwal2026!!", key="txt_iv")
 
     enc_col, dec_col = st.columns(2, gap="large")
     with enc_col:
@@ -1370,7 +1409,7 @@ def main():
         '<div class="brand-bar">'
         f'<div class="brand-mark">{SVG_BRAND}'
         '<div><div class="brand-name">CryptoML-SBox</div>'
-        '<div class="brand-sub">Konstruksi S-Box Kriptografi Berbasis Machine Learning · UNNES</div></div></div>'
+        '<div class="brand-sub">Konstruksi S-Box AES Berbasis Machine Learning · Teknik Informatika UNNES</div></div></div>'
         '<span class="pill pill-done">AES-128 · XGBoost · RF · MLP</span>'
         '</div>',
         unsafe_allow_html=True,
