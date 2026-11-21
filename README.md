@@ -60,6 +60,16 @@ Aplikasi web terdiri dari 3 halaman utama:
 
 ### Cara Mulai Pengembangan di Laptop Masing-Masing
 
+### Membangun Dataset Bersama (Yafi — Issue #3)
+
+```bash
+python -m src.dataset_builder --n-chaotic 750 --n-aes 750
+```
+
+Perintah menghasilkan `data/sbox_dataset.csv` berisi 1.500 kandidat bijektif dari jalur
+`chaotic_swap` dan `aes_affine`, 40 fitur cepat, serta target metrik untuk model ML.
+File CSV diabaikan Git karena dapat dibangun ulang dengan `--seed 42`.
+
 ### Aturan Git & Kolaborasi
 1. **Jangan push langsung ke `main`** untuk kode yang belum selesai. Selalu buat/pindah ke branch masing-masing:
    ```bash
