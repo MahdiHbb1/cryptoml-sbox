@@ -37,8 +37,12 @@ cryptoml-sbox/
 ├── src/                           # Modul Python tiap anggota tim
 ├── tests/                         # Unit test validasi AES Standar, K44, XGBoost, & web helper
 └── results/
-    ├── sbox_xgb.npy               # S-Box terpilih XGBoost (0x13F, C=0x02)
-    ├── xgb_metrics.json           # Log metrik pelatihan & penyaringan Kaggle
+    ├── sbox_xgb.npy               # S-Box terpilih XGBoost (0x1E7, C=0x07)
+    ├── sbox_rf.npy                # S-Box terpilih Random Forest (Yafi)
+    ├── sbox_mlp.npy               # S-Box terpilih MLP (Naila)
+    ├── xgb_metrics.json           # Log metrik pelatihan & penyaringan Kaggle (apple-to-apple)
+    ├── rf_metrics.json            # Log metrik Random Forest & feature importance
+    ├── mlp_metrics.json           # Log metrik MLPRegressor
     └── experiment_log.md          # Tabel pelacakan metrik ML, Metrik 1, Metrik 2 & 3
 ```
 

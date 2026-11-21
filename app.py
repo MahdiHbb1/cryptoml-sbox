@@ -701,6 +701,9 @@ def _set_active_page(page_name: str) -> None:
 def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
     xgb_summary = load_xgb_summary()
     xgb_entry = catalog.get("S-Box XGBoost (Mahdi)") or next(iter(catalog.values()))
+    xgb_poly = xgb_entry.get("poly") or "0x1E7"
+    xgb_const = xgb_entry.get("constant") or "0x07"
+    xgb_m = evaluate_sbox_full(xgb_entry["sbox"])
     preview_plain, preview_cipher = build_hero_mandrill_preview(xgb_entry["sbox"].tobytes())
 
     lead_left, lead_right = st.columns([1.15, 1.0], gap="large")
@@ -711,7 +714,7 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
             'Di dalam enkripsi <strong>AES-128</strong>, <strong>S-Box</strong> adalah tabel pengacak '
             '256 angka yang menjaga data tetap rahasia. Alih-alih menguji kandidat satu per satu secara lambat, '
             'sistem kami melatih <strong>XGBoost</strong>, <strong>Random Forest</strong>, dan <strong>MLP</strong> '
-            'untuk menyaring <strong>15.000 kandidat S-Box</strong> secara cepat lalu membuktikan ketahanannya '
+            'pada dataset bersama untuk menyaring ribuan kandidat S-Box secara cepat lalu membuktikan ketahanannya '
             'langsung pada enkripsi citra <strong>Mandrill</strong>.'
             '</p>',
             unsafe_allow_html=True,
@@ -747,7 +750,7 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
         st.markdown(
             '<div style="font-size:0.88rem; color:#465664; margin-top:0.35rem; line-height:1.5;">'
             'Pratinjau di atas dienkripsi secara nyata oleh mesin <code class="mono-val">aes_cipher_runner.py</code> '
-            'memakai S-Box terpilih XGBoost (<code class="mono-val">poly=0x13F, C=0x02, Fixed Points=0</code>). '
+            f'memakai S-Box terpilih XGBoost (<code class="mono-val">poly={xgb_poly}, C={xgb_const}, Fixed Points={xgb_m["fixed_points"]}</code>). '
             'Dekripsi mengembalikan setiap piksel identik 100%.'
             '</div></div>',
             unsafe_allow_html=True,
@@ -756,17 +759,17 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
     st.markdown(
         '<div class="stat-strip">'
         '<div class="stat-item"><div class="stat-item-label">Nonlinearity (NL)</div>'
-        '<div class="stat-item-value">112</div>'
+        f'<div class="stat-item-value">{xgb_m["nl"]}</div>'
         '<div class="stat-item-note">Batas maksimal keluarga AES (DU = 4, LAP = 0.0625)</div></div>'
         '<div class="stat-item"><div class="stat-item-label">SAC Mean &amp; Max Error</div>'
-        '<div class="stat-item-value">0.50024</div>'
-        '<div class="stat-item-note">Max Err 0.04688 (25% lebih ketat dari AES &amp; K44)</div></div>'
+        f'<div class="stat-item-value">{xgb_m["sac_mean"]:.5f}</div>'
+        f'<div class="stat-item-note">Max Err {xgb_m["sac_max_err"]:.5f} (25% lebih ketat dari AES &amp; K44)</div></div>'
         '<div class="stat-item"><div class="stat-item-label">Entropi Citra Mandrill</div>'
-        '<div class="stat-item-value">7.99973</div>'
+        '<div class="stat-item-value">7.99978</div>'
         '<div class="stat-item-note">Dari 7.76244 menuju ideal 8.000 bit (512×512 CBC2)</div></div>'
         '<div class="stat-item"><div class="stat-item-label">Difusi NPCR &amp; UACI</div>'
         '<div class="stat-item-value">99.62%</div>'
-        '<div class="stat-item-note">UACI 33.43% · Dekripsi 100% Lossless</div></div>'
+        '<div class="stat-item-note">UACI 33.46% · Dekripsi 100% Lossless</div></div>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -785,8 +788,8 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
         f'<div class="step-col"><div class="step-head">{SVG_SLIDERS}'
         '<h3 class="step-title">2. Saring Cepat dengan Machine Learning</h3></div>'
         '<p class="step-body">Setiap S-Box diekstrak menjadi 40 fitur cepat (~0,7 ms/S-Box). '
-        'Model <strong>XGBoost</strong> (R²=0,9149), <strong>Random Forest</strong>, dan <strong>MLP</strong> '
-        'memprediksi kualitas kriptografinya lalu menyaring 15.000 kandidat hingga tersisa Top-40 untuk diuji penuh.</p></div>'
+        'Model <strong>Random Forest</strong> (R²=0,9352), <strong>XGBoost</strong> (R²=0,9338), dan <strong>MLP</strong> (R²=0,9245) '
+        'dilatih pada dataset yang sama (n=1.500) lalu menyaring kandidat hingga tersisa Top-25 untuk diuji penuh.</p></div>'
         f'<div class="step-col"><div class="step-head">{SVG_SHIELD}'
         '<h3 class="step-title">3. Buktikan pada AES-128 &amp; Mandrill</h3></div>'
         '<p class="step-body">S-Box pemenang dipasang langsung ke AES-128 mode <code>CBC2</code> (difusi 2 arah) '
@@ -842,7 +845,7 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
         '<tbody>'
         '<tr><td><div class="team-member">Mahdi</div><div class="team-handle">@MahdiHbb1</div></td>'
         '<td>Model <strong>XGBoost</strong>, Generator GF(2⁸) (30 polinomial + GL(8,F₂)), Runner AES-128 CBC2, Integrasi &amp; Web Streamlit</td>'
-        '<td><code>sbox_xgb.npy</code>, <code>xgb_metrics.json</code>, 39 unit test</td>'
+        '<td><code>sbox_xgb.npy</code>, <code>xgb_metrics.json</code>, 53 unit test</td>'
         '<td><span class="pill pill-done">Merged ke main</span></td></tr>'
         '<tr><td><div class="team-member">Yafi</div><div class="team-handle">@twizzcode</div></td>'
         '<td>Model <strong>Random Forest</strong>, Generator Non-AES (Chaotic + Swap), Ekstraksi Fitur Cepat &amp; Dataset Bersama</td>'
@@ -1261,7 +1264,7 @@ def render_sim_text_tab(catalog: dict[str, dict]):
         st.markdown("**Enkripsi Pesan Teks**")
         plain_input = st.text_area(
             "Pesan Asli (Plaintext)",
-            value="Proyek Akhir Kriptografi UNNES: S-Box XGBoost (0x13F, NL=112, SAC=0.50024) siap mengamankan data.",
+            value="Proyek Akhir Kriptografi UNNES: S-Box XGBoost (0x1E7, C=0x07, NL=112, SAC=0.49951) siap mengamankan data.",
             height=135,
         )
         if st.button("Enkripsi Teks", type="primary", use_container_width=True):

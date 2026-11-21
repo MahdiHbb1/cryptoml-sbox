@@ -79,14 +79,26 @@ def list_available_sboxes(results_dir: str | Path = Path("results")) -> dict[str
     }
 
     xgb_meta = _load_json_if_exists(res_dir / "xgb_metrics.json") or {}
+    rf_meta = _load_json_if_exists(res_dir / "rf_metrics.json") or {}
+    mlp_meta = _load_json_if_exists(res_dir / "mlp_metrics.json") or {}
+
+    xgb_r2 = xgb_meta.get("ml_metrics", {}).get("r2")
+    xgb_n = xgb_meta.get("n_screen_candidates", 2000)
+    rf_r2 = rf_meta.get("ml_metrics", {}).get("r2")
+    mlp_r2 = mlp_meta.get("ml_metrics", {}).get("r2")
+
     dynamic_entries = [
         (
             "S-Box XGBoost (Mahdi)",
             res_dir / "sbox_xgb.npy",
             "Mahdi (@MahdiHbb1)",
-            xgb_meta.get("selected_sbox_poly", "0x13F"),
-            xgb_meta.get("selected_sbox_constant", "0x02"),
-            "Terpilih dari penyaringan 15.000 kandidat GF(2^8) via XGBoost (R²=0.9149).",
+            xgb_meta.get("selected_sbox_poly", "0x1E7"),
+            xgb_meta.get("selected_sbox_constant", "0x07"),
+            (
+                f"Terpilih dari penyaringan {xgb_n:,} kandidat via XGBoost (R²={xgb_r2:.4f})."
+                if xgb_r2 is not None
+                else "S-Box terpilih hasil model XGBoost (tim Mahdi)."
+            ),
         ),
         (
             "S-Box Random Forest (Yafi)",
@@ -94,7 +106,11 @@ def list_available_sboxes(results_dir: str | Path = Path("results")) -> dict[str
             "Yafi (@twizzcode)",
             None,
             None,
-            "S-Box terpilih hasil model Random Forest (tim Yafi).",
+            (
+                f"Terpilih dari penyaringan {rf_meta.get('n_screen_candidates', 2000):,} kandidat via Random Forest (R²={rf_r2:.4f})."
+                if rf_r2 is not None
+                else "S-Box terpilih hasil model Random Forest (tim Yafi)."
+            ),
         ),
         (
             "S-Box MLP (Naila)",
@@ -102,7 +118,11 @@ def list_available_sboxes(results_dir: str | Path = Path("results")) -> dict[str
             "Naila (@NAILAAR22)",
             None,
             None,
-            "S-Box terpilih hasil model MLPRegressor (tim Naila).",
+            (
+                f"Terpilih dari penyaringan {mlp_meta.get('n_screen_candidates', 2000):,} kandidat via MLPRegressor (R²={mlp_r2:.4f})."
+                if mlp_r2 is not None
+                else "S-Box terpilih hasil model MLPRegressor (tim Naila)."
+            ),
         ),
     ]
 
