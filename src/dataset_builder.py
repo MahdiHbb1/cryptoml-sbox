@@ -88,6 +88,7 @@ def _resolve_evaluator() -> Callable[[np.ndarray], dict]:
     try:
         from src.sbox_metrics import evaluate_sbox
     except ImportError:
+        # ponytail: fallback sementara setara kontrak; otomatis naik ke evaluator Naila setelah modul di-merge.
         return evaluate_sbox_default
     return evaluate_sbox
 
