@@ -14,6 +14,7 @@ Proyek akhir mata kuliah **Kriptografi**: konstruksi dan seleksi **Substitution-
 Detail lengkap alur kerja dan kontrak antarmuka modul ada di:
 - [docs/PEMBAGIAN_JOBDESK.md](docs/PEMBAGIAN_JOBDESK.md)
 - [docs/ARCHITECTURE_CONTRACT.md](docs/ARCHITECTURE_CONTRACT.md)
+- [docs/mandrill_analysis.md](docs/mandrill_analysis.md) — narasi Bab 2.6, 3.5.3, 4.3, dan 5.1 (Metrik 2 & 3)
 
 ---
 
@@ -43,6 +44,8 @@ cryptoml-sbox/
     ├── xgb_metrics.json           # Log metrik pelatihan & penyaringan Kaggle (apple-to-apple)
     ├── rf_metrics.json            # Log metrik Random Forest & feature importance
     ├── mlp_metrics.json           # Log metrik MLPRegressor
+    ├── mandrill_metrics.json      # Hasil Metrik 2 & 3 (5 S-Box × RGB/Grayscale)
+    ├── figures/                   # Grafik Metrik 2 & 3 (PNG) untuk laporan
     └── experiment_log.md          # Tabel pelacakan metrik ML, Metrik 1, Metrik 2 & 3
 ```
 
@@ -82,6 +85,50 @@ python -m src.train_rf --n-screen 2000 --top-k 25
 
 Perintah menyimpan pemenang ke `results/sbox_rf.npy` dan metrik model beserta
 peringkat *feature importance* ke `results/rf_metrics.json`.
+
+### Evaluasi Citra Mandrill — Metrik 2 & 3 (Mas Rizqi)
+
+```bash
+python -m src.mandrill_eval
+```
+
+Perintah mengevaluasi 5 S-Box (AES Standar, K44, XGBoost, Random Forest, MLP)
+pada `data/mandril_color.jpg` dalam mode RGB dan grayscale memakai AES-128
+`CBC2`, membalik 1 bit pada 1 piksel plaintext (default piksel terakhir), lalu
+menyimpan Entropy, Histogram χ², NPCR, UACI, NBCR, serta status dekripsi
+*lossless* ke `results/mandrill_metrics.json`. Tabel Markdown hasilnya dicetak
+ke terminal untuk ditempel ke `results/experiment_log.md`.
+
+Perhitungan Metrik 2 & 3 berada di `src/image_metrics.py`
+(`evaluate_image_security`, sesuai Kontrak §5), sehingga aplikasi Streamlit
+otomatis memakai implementasi yang sama lewat `src/web_helpers.py`. Opsi CLI:
+`--modes RGB GRAY`, `--flip-x/--flip-y/--channel/--bit`,
+`--cipher-mode CBC2|CBC|ECB`, dan `--out <path.json>`.
+
+Grafik untuk laporan dibuat dari JSON tersebut:
+
+```bash
+python -m src.visualize_mandrill
+```
+
+Menghasilkan `results/figures/mandrill_entropy_chi2.png` (entropy plaintext vs
+cipher dan uji Chi-square histogram cipher) serta
+`results/figures/mandrill_diffusion.png` (selisih NPCR, UACI, dan NBCR terhadap
+nilai ideal). Opsi CLI: `--json`, `--out-dir`, `--format png|svg|both`,
+`--dpi`, dan `--show`.
+
+Gambar 4.2 (plaintext, cipher, hasil dekripsi, dan histogram RGB) dibuat dengan:
+
+```bash
+python -m src.visualize_mandrill --showcase
+```
+
+Perintah ini menambah `results/figures/mandrill_encryption_xgb.png`; S-Box dan
+citra dapat diganti lewat `--sbox` dan `--image`.
+
+Narasi lengkap Bab Pengujian Citra Mandrill (persamaan Metrik 2 & 3, protokol
+uji, Tabel 4.3, pembahasan, dan kesimpulan) tersedia di
+[docs/mandrill_analysis.md](docs/mandrill_analysis.md).
 
 ### Aturan Git & Kolaborasi
 1. **Jangan push langsung ke `main`** untuk kode yang belum selesai. Selalu buat/pindah ke branch masing-masing:

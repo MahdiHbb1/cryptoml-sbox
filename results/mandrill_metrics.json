@@ -1,0 +1,368 @@
+{
+  "generated_at": "2026-11-22T07:46:34+00:00",
+  "image_path": "data/mandril_color.jpg",
+  "cipher_mode": "CBC2",
+  "key_hex": "43727970746f4d4c2d53426f78323621",
+  "iv_hex": "4d616e6472696c6c434243322d495621",
+  "ideal": {
+    "entropy": 8.0,
+    "npcr": 99.609375,
+    "uaci": 33.4635,
+    "nbcr": 50.0
+  },
+  "sboxes": [
+    "AES Standar (FIPS-197)",
+    "K44 Alamsyah",
+    "S-Box XGBoost",
+    "S-Box Random Forest",
+    "S-Box MLP"
+  ],
+  "images": {
+    "RGB": {
+      "shape": [
+        512,
+        512,
+        3
+      ]
+    },
+    "GRAY": {
+      "shape": [
+        512,
+        512
+      ]
+    }
+  },
+  "warnings": [],
+  "runs": [
+    {
+      "sbox": "AES Standar (FIPS-197)",
+      "image_mode": "RGB",
+      "plain_shape": [
+        512,
+        512,
+        3
+      ],
+      "cipher_shape": [
+        512,
+        512,
+        3
+      ],
+      "flip": {
+        "x": 511,
+        "y": 511,
+        "channel": 0,
+        "bit": 0,
+        "pixel_plain": 4,
+        "pixel_flipped": 5
+      },
+      "metrics": {
+        "entropy_plain": 7.762436053682368,
+        "entropy_cipher": 7.999764141450715,
+        "hist_chi2": 257.1321614583333,
+        "hist_p_value": 0.4507932794834798,
+        "npcr": 99.61357116699219,
+        "uaci": 33.464957343207466
+      },
+      "nbcr": 49.97143745422363,
+      "lossless": true,
+      "encrypt_sec": 7.734963199999999,
+      "decrypt_sec": 0.27892590000000084
+    },
+    {
+      "sbox": "K44 Alamsyah",
+      "image_mode": "RGB",
+      "plain_shape": [
+        512,
+        512,
+        3
+      ],
+      "cipher_shape": [
+        512,
+        512,
+        3
+      ],
+      "flip": {
+        "x": 511,
+        "y": 511,
+        "channel": 0,
+        "bit": 0,
+        "pixel_plain": 4,
+        "pixel_flipped": 5
+      },
+      "metrics": {
+        "entropy_plain": 7.762436053682368,
+        "entropy_cipher": 7.999761604786066,
+        "hist_chi2": 259.9069010416667,
+        "hist_p_value": 0.4030803305896629,
+        "npcr": 99.60721333821614,
+        "uaci": 33.48067589055479
+      },
+      "nbcr": 49.995358784993485,
+      "lossless": true,
+      "encrypt_sec": 9.271546699999998,
+      "decrypt_sec": 0.3514614000000016
+    },
+    {
+      "sbox": "S-Box XGBoost",
+      "image_mode": "RGB",
+      "plain_shape": [
+        512,
+        512,
+        3
+      ],
+      "cipher_shape": [
+        512,
+        512,
+        3
+      ],
+      "flip": {
+        "x": 511,
+        "y": 511,
+        "channel": 0,
+        "bit": 0,
+        "pixel_plain": 4,
+        "pixel_flipped": 5
+      },
+      "metrics": {
+        "entropy_plain": 7.762436053682368,
+        "entropy_cipher": 7.999765276580949,
+        "hist_chi2": 255.724609375,
+        "hist_p_value": 0.47545065437304695,
+        "npcr": 99.61128234863281,
+        "uaci": 33.45184625363817
+      },
+      "nbcr": 49.98769760131836,
+      "lossless": true,
+      "encrypt_sec": 11.116861800000002,
+      "decrypt_sec": 0.3872259999999983
+    },
+    {
+      "sbox": "S-Box Random Forest",
+      "image_mode": "RGB",
+      "plain_shape": [
+        512,
+        512,
+        3
+      ],
+      "cipher_shape": [
+        512,
+        512,
+        3
+      ],
+      "flip": {
+        "x": 511,
+        "y": 511,
+        "channel": 0,
+        "bit": 0,
+        "pixel_plain": 4,
+        "pixel_flipped": 5
+      },
+      "metrics": {
+        "entropy_plain": 7.762436053682368,
+        "entropy_cipher": 7.999737158929463,
+        "hist_chi2": 286.48893229166663,
+        "hist_p_value": 0.08534310221279506,
+        "npcr": 99.62120056152344,
+        "uaci": 33.469130572150725
+      },
+      "nbcr": 50.03883043924967,
+      "lossless": true,
+      "encrypt_sec": 11.368619600000002,
+      "decrypt_sec": 0.3470278999999934
+    },
+    {
+      "sbox": "S-Box MLP",
+      "image_mode": "RGB",
+      "plain_shape": [
+        512,
+        512,
+        3
+      ],
+      "cipher_shape": [
+        512,
+        512,
+        3
+      ],
+      "flip": {
+        "x": 511,
+        "y": 511,
+        "channel": 0,
+        "bit": 0,
+        "pixel_plain": 4,
+        "pixel_flipped": 5
+      },
+      "metrics": {
+        "entropy_plain": 7.762436053682368,
+        "entropy_cipher": 7.999768734448785,
+        "hist_chi2": 252.04036458333331,
+        "hist_p_value": 0.5406258951131245,
+        "npcr": 99.60797627766927,
+        "uaci": 33.43018026912914
+      },
+      "nbcr": 49.987538655598954,
+      "lossless": true,
+      "encrypt_sec": 12.062996999999996,
+      "decrypt_sec": 0.5727583999999979
+    },
+    {
+      "sbox": "AES Standar (FIPS-197)",
+      "image_mode": "GRAY",
+      "plain_shape": [
+        512,
+        512
+      ],
+      "cipher_shape": [
+        512,
+        512
+      ],
+      "flip": {
+        "x": 511,
+        "y": 511,
+        "channel": 0,
+        "bit": 0,
+        "pixel_plain": 4,
+        "pixel_flipped": 5
+      },
+      "metrics": {
+        "entropy_plain": 7.358319801407184,
+        "entropy_cipher": 7.999393769373368,
+        "hist_chi2": 220.041015625,
+        "hist_p_value": 0.9446586517750855,
+        "npcr": 99.59068298339844,
+        "uaci": 33.47840402640547
+      },
+      "nbcr": 50.0363826751709,
+      "lossless": true,
+      "encrypt_sec": 5.248339100000003,
+      "decrypt_sec": 0.20118480000000005
+    },
+    {
+      "sbox": "K44 Alamsyah",
+      "image_mode": "GRAY",
+      "plain_shape": [
+        512,
+        512
+      ],
+      "cipher_shape": [
+        512,
+        512
+      ],
+      "flip": {
+        "x": 511,
+        "y": 511,
+        "channel": 0,
+        "bit": 0,
+        "pixel_plain": 4,
+        "pixel_flipped": 5
+      },
+      "metrics": {
+        "entropy_plain": 7.358319801407184,
+        "entropy_cipher": 7.999340343195187,
+        "hist_chi2": 239.3515625,
+        "hist_p_value": 0.7510979270088325,
+        "npcr": 99.59945678710938,
+        "uaci": 33.454591339709715
+      },
+      "nbcr": 49.93176460266113,
+      "lossless": true,
+      "encrypt_sec": 5.576905599999996,
+      "decrypt_sec": 0.10377029999999365
+    },
+    {
+      "sbox": "S-Box XGBoost",
+      "image_mode": "GRAY",
+      "plain_shape": [
+        512,
+        512
+      ],
+      "cipher_shape": [
+        512,
+        512
+      ],
+      "flip": {
+        "x": 511,
+        "y": 511,
+        "channel": 0,
+        "bit": 0,
+        "pixel_plain": 4,
+        "pixel_flipped": 5
+      },
+      "metrics": {
+        "entropy_plain": 7.358319801407184,
+        "entropy_cipher": 7.999297839900663,
+        "hist_chi2": 255.595703125,
+        "hist_p_value": 0.47771950769059324,
+        "npcr": 99.61967468261719,
+        "uaci": 33.44968758377375
+      },
+      "nbcr": 49.995994567871094,
+      "lossless": true,
+      "encrypt_sec": 4.742914099999993,
+      "decrypt_sec": 0.2156354000000107
+    },
+    {
+      "sbox": "S-Box Random Forest",
+      "image_mode": "GRAY",
+      "plain_shape": [
+        512,
+        512
+      ],
+      "cipher_shape": [
+        512,
+        512
+      ],
+      "flip": {
+        "x": 511,
+        "y": 511,
+        "channel": 0,
+        "bit": 0,
+        "pixel_plain": 4,
+        "pixel_flipped": 5
+      },
+      "metrics": {
+        "entropy_plain": 7.358319801407184,
+        "entropy_cipher": 7.99940348720532,
+        "hist_chi2": 216.822265625,
+        "hist_p_value": 0.960218529343461,
+        "npcr": 99.60174560546875,
+        "uaci": 33.41916551776962
+      },
+      "nbcr": 49.977922439575195,
+      "lossless": true,
+      "encrypt_sec": 4.041028999999995,
+      "decrypt_sec": 0.12747930000000451
+    },
+    {
+      "sbox": "S-Box MLP",
+      "image_mode": "GRAY",
+      "plain_shape": [
+        512,
+        512
+      ],
+      "cipher_shape": [
+        512,
+        512
+      ],
+      "flip": {
+        "x": 511,
+        "y": 511,
+        "channel": 0,
+        "bit": 0,
+        "pixel_plain": 4,
+        "pixel_flipped": 5
+      },
+      "metrics": {
+        "entropy_plain": 7.358319801407184,
+        "entropy_cipher": 7.999270049715083,
+        "hist_chi2": 265.150390625,
+        "hist_p_value": 0.3180825952263482,
+        "npcr": 99.59335327148438,
+        "uaci": 33.501838235294116
+      },
+      "nbcr": 50.02574920654297,
+      "lossless": true,
+      "encrypt_sec": 4.782243500000007,
+      "decrypt_sec": 0.17390320000001225
+    }
+  ]
+}
