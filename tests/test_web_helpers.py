@@ -139,6 +139,13 @@ def test_compute_image_security_metrics_handles_identical_images():
     assert m["uaci"] == pytest.approx(0.0, abs=1e-9)
 
 
+def test_web_helpers_memakai_modul_image_metrics_sesuai_kontrak():
+    from src.image_metrics import evaluate_image_security
+    from src.web_helpers import _resolve_image_metrics_fn
+
+    assert _resolve_image_metrics_fn() is evaluate_image_security
+
+
 def test_compute_image_security_metrics_uses_per_channel_mean_npcr_for_rgb():
     c1 = np.zeros((4, 4, 3), dtype=np.uint8)
     c2 = c1.copy()
