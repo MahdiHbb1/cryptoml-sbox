@@ -29,6 +29,7 @@ from src.web_helpers import (
     format_sbox_grid,
     generate_live_affine_sbox,
     list_available_sboxes,
+    load_mandrill_benchmark_table,
     normalize_16byte_secret,
     parse_uploaded_sbox,
     run_image_simulation,
@@ -36,7 +37,9 @@ from src.web_helpers import (
 
 REPO_ROOT = Path(__file__).resolve().parent
 RESULTS_DIR = REPO_ROOT / "results"
+FIGURES_DIR = RESULTS_DIR / "figures"
 MANDRILL_PATH = REPO_ROOT / "data" / "mandril_color.jpg"
+MANDRILL_METRICS_PATH = RESULTS_DIR / "mandrill_metrics.json"
 ARCHIFY_HTML_PATH = REPO_ROOT / "assets" / "cryptoml_sbox_archify.html"
 XGB_METRICS_PATH = RESULTS_DIR / "xgb_metrics.json"
 
@@ -134,6 +137,10 @@ table, .stDataFrame, [data-testid="stMetricValue"] {
   font-variant-numeric: tabular-nums;
 }
 
+[data-testid="stImageCaption"] {
+  color: var(--ink-muted) !important;
+}
+
 /* Header & top navigation bar */
 .brand-bar {
   display: flex;
@@ -168,12 +175,14 @@ table, .stDataFrame, [data-testid="stMetricValue"] {
 .nav-radio-wrap div[role="radiogroup"] {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   gap: 0.45rem;
   background: var(--surface-subtle);
   padding: 0.3rem;
   border-radius: 10px;
   border: 1px solid var(--border);
   width: fit-content;
+  max-width: 100%;
 }
 
 .nav-radio-wrap div[role="radiogroup"] > label {
@@ -363,14 +372,32 @@ table, .stDataFrame, [data-testid="stMetricValue"] {
 }
 
 /* Team ledger table */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
 .team-table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
+  background: var(--surface);
+  font-size: 0.95rem;
+}
+
+.insight-note {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  overflow: hidden;
-  font-size: 0.95rem;
+  padding: 0.78rem 1rem;
+  font-size: 0.92rem;
+  color: #2D3D4A;
+  margin-top: 0.75rem;
+  line-height: 1.55;
 }
 
 .team-table th {
@@ -478,11 +505,37 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   background-color: var(--accent-hover);
   border-color: var(--accent-hover);
 }
+
+@media (max-width: 640px) {
+  .block-container {
+    padding-top: 3.35rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .nav-radio-wrap div[role="radiogroup"] > label {
+    padding: 0.42rem 0.78rem;
+  }
+
+  .nav-radio-wrap div[role="radiogroup"] > label p {
+    font-size: 0.88rem;
+  }
+
+  .stButton > button {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-radio-wrap div[role="radiogroup"] > label {
+    transition: none;
+  }
+}
 </style>
 """
 
 SVG_BRAND = (
-    '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" '
+    '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" '
     'stroke="#0F5C5C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'
     '<rect x="3" y="3" width="7" height="7" rx="1.5"/>'
     '<rect x="14" y="3" width="7" height="7" rx="1.5"/>'
@@ -491,25 +544,25 @@ SVG_BRAND = (
 )
 
 SVG_GRID = (
-    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" '
+    '<svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" '
     'stroke="#0F5C5C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/></svg>'
 )
 
 SVG_SLIDERS = (
-    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" '
+    '<svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" '
     'stroke="#0F5C5C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>'
 )
 
 SVG_SHIELD = (
-    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" '
+    '<svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" '
     'stroke="#0F5C5C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
     '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>'
 )
 
 SVG_CHECK = (
-    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" '
+    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" '
     'stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">'
     '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>'
 )
@@ -578,6 +631,27 @@ def load_xgb_summary() -> dict:
 
 
 @st.cache_data(show_spinner=False)
+def load_mandrill_benchmark() -> tuple[dict, pd.DataFrame]:
+    return load_mandrill_benchmark_table(MANDRILL_METRICS_PATH)
+
+
+@st.cache_data(show_spinner=False)
+def load_figure_bytes(path_str: str) -> bytes:
+    path = Path(path_str)
+    return path.read_bytes() if path.exists() else b""
+
+
+@st.cache_data(show_spinner=False)
+def cached_evaluate_sbox(sbox_bytes: bytes) -> dict:
+    return evaluate_sbox_full(np.frombuffer(sbox_bytes, dtype=np.uint8))
+
+
+@st.cache_data(show_spinner=False)
+def cached_sac_matrix(sbox_bytes: bytes) -> np.ndarray:
+    return compute_sac_matrix(np.frombuffer(sbox_bytes, dtype=np.uint8))
+
+
+@st.cache_data(show_spinner=False)
 def load_mandrill_array() -> np.ndarray:
     img = Image.open(MANDRILL_PATH).convert("RGB")
     return np.asarray(img, dtype=np.uint8)
@@ -585,12 +659,12 @@ def load_mandrill_array() -> np.ndarray:
 
 @st.cache_data(show_spinner=False)
 def build_hero_mandrill_preview(sbox_bytes: bytes) -> tuple[np.ndarray, np.ndarray]:
-    """Enkripsi preview cepat Mandrill 160x160 untuk demonstrasi langsung di halaman depan."""
+    """Enkripsi preview cepat Mandrill 224x224 untuk demonstrasi langsung di halaman depan."""
     sbox = np.frombuffer(sbox_bytes, dtype=np.uint8)
     plain = load_mandrill_array()
     key = normalize_16byte_secret("CryptoML-SBox26!", mode="utf8")
-    iv = normalize_16byte_secret("UNNES-Kripto2026", mode="utf8")
-    sim = run_image_simulation(plain, sbox=sbox, key=key, iv=iv, mode="CBC2", max_dim=160)
+    iv = normalize_16byte_secret("MandrillCBC2-IV!", mode="utf8")
+    sim = run_image_simulation(plain, sbox=sbox, key=key, iv=iv, mode="CBC2", max_dim=224)
     return sim["plain"], sim["cipher"]
 
 
@@ -732,12 +806,33 @@ def _set_active_page(page_name: str) -> None:
 
 
 def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
-    xgb_summary = load_xgb_summary()
+    mandrill_raw, df_mandrill = load_mandrill_benchmark()
     xgb_entry = catalog.get("S-Box XGBoost (Mahdi)") or next(iter(catalog.values()))
     xgb_poly = xgb_entry.get("poly") or "0x1E7"
     xgb_const = xgb_entry.get("constant") or "0x07"
-    xgb_m = evaluate_sbox_full(xgb_entry["sbox"])
+    xgb_m = cached_evaluate_sbox(xgb_entry["sbox"].tobytes())
     preview_plain, preview_cipher = build_hero_mandrill_preview(xgb_entry["sbox"].tobytes())
+
+    # Ambil KPI Mandrill secara dinamis dari results/mandrill_metrics.json agar sinkron 100% dengan laporan
+    hero_entropy = "7.99977"
+    hero_entropy_note = "Naik dari 7.76244 menuju ideal 8.000 bit (512×512 CBC2)"
+    hero_npcr = "99.61%"
+    hero_npcr_note = "UACI 33.45% · 10/10 Konfigurasi Lossless"
+    if not df_mandrill.empty:
+        rgb_xgb = df_mandrill[
+            (df_mandrill["S-Box"] == "S-Box XGBoost") & (df_mandrill["Mode"] == "RGB")
+        ]
+        if not rgb_xgb.empty:
+            r = rgb_xgb.iloc[0]
+            hero_entropy = f"{r['Entropy Cipher']:.5f}"
+            hero_entropy_note = (
+                f"Naik dari {r['Entropy Plain']:.5f} menuju ideal 8.000 bit (p = {r['p-value']:.4f})"
+            )
+            hero_npcr = f"{r['NPCR (%)']:.2f}%"
+            lossless_cnt = int((df_mandrill["Lossless"] == "Ya").sum())
+            hero_npcr_note = (
+                f"UACI {r['UACI (%)']:.2f}% · {lossless_cnt}/{len(df_mandrill)} Uji Mandrill Lossless"
+            )
 
     lead_left, lead_right = st.columns([1.15, 1.0], gap="large")
     with lead_left:
@@ -746,9 +841,9 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
             '<p class="lead-copy">'
             'Di dalam algoritma <strong>AES-128</strong>, <strong>S-Box</strong> berperan sebagai tabel pengacak '
             '256 nilai yang menjadi inti keamanan enkripsi. Alih-alih menguji kandidat secara manual yang memakan waktu, '
-            'sistem ini melatih <strong>XGBoost</strong>, <strong>Random Forest</strong>, dan <strong>MLP</strong> '
+            'sistem ini melatih <strong>Random Forest</strong>, <strong>XGBoost</strong>, dan <strong>MLP</strong> '
             'pada dataset bersama untuk menyaring ribuan kandidat S-Box secara cepat, lalu membuktikan ketahanannya '
-            'langsung pada enkripsi citra digital <strong>Mandrill</strong>.'
+            'langsung pada enkripsi citra digital <strong>Mandrill</strong> (RGB dan Grayscale).'
             '</p>',
             unsafe_allow_html=True,
         )
@@ -757,14 +852,14 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
             st.button(
                 "Coba Simulasi Langsung",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 on_click=_set_active_page,
                 args=(PAGES[2],),
             )
         with btn_col2:
             st.button(
                 "Lihat Diagram Arsitektur",
-                use_container_width=True,
+                width="stretch",
                 on_click=_set_active_page,
                 args=(PAGES[1],),
             )
@@ -773,12 +868,12 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
         st.markdown('<div class="proof-panel">', unsafe_allow_html=True)
         img_c1, img_c2 = st.columns(2, gap="small")
         with img_c1:
-            st.image(preview_plain, caption="Mandrill Asli (RGB)", use_container_width=True)
+            st.image(preview_plain, caption="Mandrill Asli (RGB)", width="stretch")
         with img_c2:
             st.image(
                 preview_cipher,
                 caption="Terenkripsi AES-CBC2 + S-Box XGBoost",
-                use_container_width=True,
+                width="stretch",
             )
         st.markdown(
             '<div style="font-size:0.88rem; color:#465664; margin-top:0.35rem; line-height:1.55;">'
@@ -798,11 +893,11 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
         f'<div class="stat-item-value">{xgb_m["sac_mean"]:.5f}</div>'
         f'<div class="stat-item-note">Max Err {xgb_m["sac_max_err"]:.5f} (25% lebih ketat dari AES &amp; K44)</div></div>'
         '<div class="stat-item"><div class="stat-item-label">Entropi Citra Mandrill</div>'
-        '<div class="stat-item-value">7.99978</div>'
-        '<div class="stat-item-note">Naik dari 7.76244 menuju ideal 8.000 bit (512×512 CBC2)</div></div>'
+        f'<div class="stat-item-value">{hero_entropy}</div>'
+        f'<div class="stat-item-note">{hero_entropy_note}</div></div>'
         '<div class="stat-item"><div class="stat-item-label">Difusi NPCR &amp; UACI</div>'
-        '<div class="stat-item-value">99.62%</div>'
-        '<div class="stat-item-note">UACI 33.46% · Dekripsi 100% Lossless</div></div>'
+        f'<div class="stat-item-value">{hero_npcr}</div>'
+        f'<div class="stat-item-note">{hero_npcr_note}</div></div>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -825,9 +920,9 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
         'dilatih pada dataset bersama (n = 1.500), lalu menyaring 2.000 kandidat hingga tersisa Top-25 untuk dievaluasi penuh.</p></div>'
         f'<div class="step-col"><div class="step-head">{SVG_SHIELD}'
         '<h3 class="step-title">3. Buktikan pada AES-128 &amp; Mandrill</h3></div>'
-        '<p class="step-body">S-Box terpilih dipasang langsung ke AES-128 mode <code>CBC2</code> (difusi dua arah) '
-        'untuk mengenkripsi citra Mandrill 512×512. Ketahanannya dibuktikan lewat Entropi, Histogram, NPCR, UACI, '
-        'dan verifikasi dekripsi <em>lossless</em>.</p></div>'
+        '<p class="step-body">Kelima S-Box dipasang langsung ke AES-128 mode <code>CBC2</code> (difusi dua arah) '
+        'untuk mengenkripsi citra Mandrill 512×512 (RGB &amp; Grayscale). Ketahanannya dibuktikan lewat Entropi, '
+        'Uji Chi-Square, NPCR, UACI, NBCR, dan verifikasi dekripsi 100% <em>lossless</em>.</p></div>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -843,13 +938,13 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
 
     st.dataframe(
         df_metrics,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         height=38 * len(df_metrics) + 42,
     )
 
     chart_fig = render_comparison_chart(df_metrics)
-    st.pyplot(chart_fig, use_container_width=True)
+    st.pyplot(chart_fig, width="stretch")
     plt.close(chart_fig)
 
     df_ml = load_all_ml_summaries()
@@ -862,43 +957,117 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
         )
         st.dataframe(
             df_ml,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=38 * len(df_ml) + 42,
         )
 
+    # Live Mandrill Metric 2 & 3 Results (5 S-Box x RGB/Grayscale)
+    if not df_mandrill.empty:
+        st.markdown(
+            '<h2 class="section-heading">Hasil Uji Keamanan Citra Mandrill (Metrik 2 &amp; 3 — 5 S-Box)</h2>'
+            '<p class="section-sub">Pengujian dilakukan oleh Mas Rizqi (<code>src/mandrill_eval.py</code> &amp; '
+            '<code>src/image_metrics.py</code>) pada <code>data/mandril_color.jpg</code> 512×512 memakai AES-128 '
+            '<code>CBC2</code> dengan pembalikan 1 bit pada piksel terakhir <code>(511, 511)</code>. '
+            'Seluruh <strong>10/10 konfigurasi</strong> lulus uji keacakan (Entropy ≥ 7.99927, χ² p &gt; 0.05), '
+            'ambang Wu et al. (NPCR ≥ 99.5893%, UACI 33.37–33.55%), dan dekripsi 100% <em>lossless</em>.</p>',
+            unsafe_allow_html=True,
+        )
+        tab_tbl, tab_m2, tab_m3, tab_vis = st.tabs(
+            [
+                "Tabel 10 Konfigurasi",
+                "Grafik Metrik 2 (Entropy & χ²)",
+                "Grafik Metrik 3 (Difusi 1-Bit)",
+                "Visualisasi Enkripsi & Histogram RGB",
+            ]
+        )
+        with tab_tbl:
+            mode_filter = st.radio(
+                "Filter mode citra",
+                ["Semua (10)", "RGB (5)", "Grayscale (5)"],
+                horizontal=True,
+                label_visibility="collapsed",
+                key="mandrill_mode_filter",
+            )
+            if mode_filter.startswith("RGB"):
+                df_show = df_mandrill[df_mandrill["Mode"] == "RGB"]
+            elif mode_filter.startswith("Grayscale"):
+                df_show = df_mandrill[df_mandrill["Mode"] == "Grayscale"]
+            else:
+                df_show = df_mandrill
+            st.dataframe(
+                df_show,
+                width="stretch",
+                hide_index=True,
+                height=38 * len(df_show) + 42,
+            )
+            st.markdown(
+                '<div class="insight-note">'
+                '<strong>Temuan kunci mode operasi:</strong> saat 1 bit dibalik pada piksel terakhir '
+                '<code>(511, 511)</code>, mode <strong>ECB</strong> dan <strong>CBC 1-lintasan</strong> hanya '
+                'menghasilkan NPCR <code>0.0020%</code> (hanya 1 blok 16-byte berubah), sedangkan mode '
+                '<strong>CBC2</strong> menyebarkan perubahan ke seluruh citra hingga <code>99.59–99.62%</code> '
+                'dengan dekripsi tetap 100% lossless.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        with tab_m2:
+            fig_m2_bytes = load_figure_bytes(str(FIGURES_DIR / "mandrill_entropy_chi2.png"))
+            if fig_m2_bytes:
+                st.image(
+                    fig_m2_bytes,
+                    caption="Metrik 2 — Entropy Shannon plaintext vs cipher dan uji Chi-Square histogram 256 bin (kritis 293.25).",
+                    width="stretch",
+                )
+        with tab_m3:
+            fig_m3_bytes = load_figure_bytes(str(FIGURES_DIR / "mandrill_diffusion.png"))
+            if fig_m3_bytes:
+                st.image(
+                    fig_m3_bytes,
+                    caption="Metrik 3 — Selisih NPCR, UACI, dan NBCR terhadap nilai ideal (poin persentase) untuk 5 S-Box × 2 mode.",
+                    width="stretch",
+                )
+        with tab_vis:
+            fig_vis_bytes = load_figure_bytes(str(FIGURES_DIR / "mandrill_encryption_xgb.png"))
+            if fig_vis_bytes:
+                st.image(
+                    fig_vis_bytes,
+                    caption="Visualisasi enkripsi, dekripsi identik byte-per-byte (maks |Δ| = 0), dan histogram RGB (AES-128 CBC2 + S-Box XGBoost).",
+                    width="stretch",
+                )
+
     # Team ledger
     has_rf = (RESULTS_DIR / "sbox_rf.npy").exists()
     has_mlp = (RESULTS_DIR / "sbox_mlp.npy").exists()
-    rf_pill = '<span class="pill pill-done">Selesai (.npy)</span>' if has_rf else '<span class="pill pill-wip">Tahap Pengembangan</span>'
-    mlp_pill = '<span class="pill pill-done">Selesai (.npy)</span>' if has_mlp else '<span class="pill pill-wip">Tahap Pengembangan</span>'
-    has_img_mod = (REPO_ROOT / "src" / "image_metrics.py").exists()
-    rizqi_pill = '<span class="pill pill-done">Modul Siap</span>' if has_img_mod else '<span class="pill pill-wip">Tahap Pengembangan</span>'
+    has_img_mod = (REPO_ROOT / "src" / "image_metrics.py").exists() and MANDRILL_METRICS_PATH.exists()
+    rf_pill = '<span class="pill pill-done">Selesai · Merged</span>' if has_rf else '<span class="pill pill-wip">Tahap Pengembangan</span>'
+    mlp_pill = '<span class="pill pill-done">Selesai · Merged</span>' if has_mlp else '<span class="pill pill-wip">Tahap Pengembangan</span>'
+    rizqi_pill = '<span class="pill pill-done">Selesai · Merged</span>' if has_img_mod else '<span class="pill pill-wip">Tahap Pengembangan</span>'
 
     st.markdown(
         '<h2 class="section-heading">Pembagian Pengembangan Tim (4 Anggota)</h2>'
-        '<p class="section-sub">Setiap anggota memegang satu jalur tanggung jawab independen '
-        'dengan kontrak antarmuka seragam di <code>docs/ARCHITECTURE_CONTRACT.md</code>.</p>'
-        '<table class="team-table">'
+        '<p class="section-sub">Seluruh 4 jalur tanggung jawab telah selesai, lolos 100+ unit test otomatis, '
+        'dan terintegrasi penuh di branch <code>main</code> sesuai <code>docs/ARCHITECTURE_CONTRACT.md</code>.</p>'
+        '<div class="table-scroll"><table class="team-table">'
         '<thead><tr><th>Anggota</th><th>Model ML &amp; Modul Kriptografi</th><th>Keluaran Utama</th><th>Status</th></tr></thead>'
         '<tbody>'
         '<tr><td><div class="team-member">Mahdi</div><div class="team-handle">@MahdiHbb1</div></td>'
         '<td>Model <strong>XGBoost</strong>, Generator GF(2⁸) (30 polinomial + GL(8,F₂)), Runner AES-128 CBC2, Integrasi &amp; Web Streamlit</td>'
-        '<td><code>sbox_xgb.npy</code>, <code>xgb_metrics.json</code>, 53 unit test</td>'
-        '<td><span class="pill pill-done">Merged ke main</span></td></tr>'
+        '<td><code>sbox_xgb.npy</code>, <code>xgb_metrics.json</code>, <code>app.py</code>, Diagram Archify</td>'
+        '<td><span class="pill pill-done">Selesai · Merged</span></td></tr>'
         '<tr><td><div class="team-member">Yafi</div><div class="team-handle">@twizzcode</div></td>'
         '<td>Model <strong>Random Forest</strong>, Generator Non-AES (Chaotic + Swap), Ekstraksi Fitur Cepat &amp; Dataset Bersama</td>'
-        '<td><code>sbox_dataset.csv</code>, <code>train_rf.py</code>, <code>sbox_rf.npy</code></td>'
+        '<td><code>sbox_dataset.csv</code>, <code>train_rf.py</code>, <code>sbox_rf.npy</code>, <code>rf_metrics.json</code></td>'
         f'<td>{rf_pill}</td></tr>'
         '<tr><td><div class="team-member">Naila</div><div class="team-handle">@NAILAAR22</div></td>'
         '<td>Model <strong>MLP</strong> (StandardScaler + MLPRegressor), Evaluator Metrik 1 (255-mask NL, SAC, BIC, DU, LAP) &amp; Validasi AES/K44</td>'
-        '<td><code>sbox_metrics.py</code>, <code>train_mlp.py</code>, <code>sbox_mlp.npy</code></td>'
+        '<td><code>sbox_metrics.py</code>, <code>train_mlp.py</code>, <code>sbox_mlp.npy</code>, <code>mlp_metrics.json</code></td>'
         f'<td>{mlp_pill}</td></tr>'
         '<tr><td><div class="team-member">Mas Rizqi</div><div class="team-handle">@rizqinp2</div></td>'
-        '<td>Evaluasi Keamanan Citra Mandrill (Metrik 2 &amp; 3: Entropy, Histogram χ², NPCR, UACI) untuk 5 S-Box &amp; Visualisasi Laporan</td>'
-        '<td><code>image_metrics.py</code>, grafik perbandingan akhir</td>'
+        '<td>Evaluasi Keamanan Citra Mandrill (Metrik 2 &amp; 3: Entropy, Histogram χ², NPCR, UACI, NBCR) untuk 5 S-Box &amp; Visualisasi Laporan</td>'
+        '<td><code>image_metrics.py</code>, <code>mandrill_eval.py</code>, <code>mandrill_metrics.json</code>, 3 grafik PNG</td>'
         f'<td>{rizqi_pill}</td></tr>'
-        '</tbody></table>',
+        '</tbody></table></div>',
         unsafe_allow_html=True,
     )
 
@@ -938,7 +1107,7 @@ def render_page_architecture():
             data=archify_html.encode("utf-8"),
             file_name="cryptoml_sbox_architecture_archify.html",
             mime="text/html",
-            use_container_width=True,
+            width="stretch",
         )
 
     st.markdown('<div class="archify-frame">', unsafe_allow_html=True)
@@ -1008,7 +1177,7 @@ def render_sim_sbox_tab(catalog: dict[str, dict]):
         with g2:
             seed_val = int(st.number_input("Seed Acak", min_value=0, max_value=999999, value=2026, step=1))
         with g3:
-            gen_clicked = st.button("Bangkitkan S-Box Baru", type="primary", use_container_width=True)
+            gen_clicked = st.button("Bangkitkan S-Box Baru", type="primary", width="stretch")
 
         if gen_clicked or "live_gen_sbox" not in st.session_state:
             poly_int = None if poly_choice.startswith("Acak") else int(poly_choice, 16)
@@ -1042,9 +1211,9 @@ def render_sim_sbox_tab(catalog: dict[str, dict]):
     assert selected_sbox is not None
     st.caption(selected_meta)
 
-    metrics = evaluate_sbox_full(selected_sbox)
-    aes_ref = evaluate_sbox_full(catalog["AES Standar (FIPS-197)"]["sbox"])
-    sac_mat = compute_sac_matrix(selected_sbox)
+    metrics = cached_evaluate_sbox(selected_sbox.tobytes())
+    aes_ref = cached_evaluate_sbox(catalog["AES Standar (FIPS-197)"]["sbox"].tobytes())
+    sac_mat = cached_sac_matrix(selected_sbox.tobytes())
 
     # Metric 1 highlights
     m1, m2, m3, m4, m5, m6 = st.columns(6)
@@ -1088,7 +1257,7 @@ def render_sim_sbox_tab(catalog: dict[str, dict]):
                 label_visibility="collapsed",
             )
         grid_df = format_sbox_grid(selected_sbox, fmt="hex" if fmt_choice == "Heksadesimal" else "dec")
-        st.dataframe(grid_df, use_container_width=True, height=430)
+        st.dataframe(grid_df, width="stretch", height=430)
 
         dl1, dl2 = st.columns(2)
         npy_buf = io.BytesIO()
@@ -1100,7 +1269,7 @@ def render_sim_sbox_tab(catalog: dict[str, dict]):
                 data=npy_buf.getvalue(),
                 file_name="sbox_selected.npy",
                 mime="application/octet-stream",
-                use_container_width=True,
+                width="stretch",
             )
         with dl2:
             st.download_button(
@@ -1108,12 +1277,12 @@ def render_sim_sbox_tab(catalog: dict[str, dict]):
                 data=csv_text.encode("utf-8"),
                 file_name="sbox_16x16.csv",
                 mime="text/csv",
-                use_container_width=True,
+                width="stretch",
             )
 
     with heat_col:
         sac_fig = render_sac_heatmap(sac_mat)
-        st.pyplot(sac_fig, use_container_width=True)
+        st.pyplot(sac_fig, width="stretch")
         plt.close(sac_fig)
         st.caption(
             f"Bijective: {'Ya' if metrics['bijective'] else 'Tidak'} · "
@@ -1161,7 +1330,7 @@ def render_sim_image_tab(catalog: dict[str, dict]):
     with key_col:
         key_text = st.text_input("Kunci AES-128 (16 karakter UTF-8)", value="CryptoML-SBox26!", key="img_key")
     with iv_col:
-        iv_text = st.text_input("Initialization Vector / IV (16 karakter)", value="UNNES-Kripto2026", key="img_iv")
+        iv_text = st.text_input("Initialization Vector / IV (16 karakter)", value="MandrillCBC2-IV!", key="img_iv")
 
     uploaded_img = None
     if img_source == "Unggah Gambar Sendiri":
@@ -1213,10 +1382,11 @@ def render_sim_image_tab(catalog: dict[str, dict]):
     mode_used = payload["mode"]
 
     if sim["lossless"]:
+        nbcr_txt = f" · NBCR {sim['nbcr']:.2f}%" if "nbcr" in sim else ""
         st.markdown(
             f'<div class="verify-ok">{SVG_CHECK}'
             f'<span>Dekripsi 100% Lossless ({payload["sbox_name"]} · Mode {mode_used} · '
-            f'Resolusi {sim["plain"].shape[1]}×{sim["plain"].shape[0]} · '
+            f'Resolusi {sim["plain"].shape[1]}×{sim["plain"].shape[0]}{nbcr_txt} · '
             f'Enkripsi {sim["encrypt_sec"]:.2f} detik · Dekripsi {sim["decrypt_sec"]:.2f} detik)</span></div>',
             unsafe_allow_html=True,
         )
@@ -1236,11 +1406,11 @@ def render_sim_image_tab(catalog: dict[str, dict]):
 
     p1, p2, p3 = st.columns(3, gap="medium")
     with p1:
-        st.image(sim["plain"], caption="Citra Asli (Plaintext)", use_container_width=True)
+        st.image(sim["plain"], caption="Citra Asli (Plaintext)", width="stretch")
     with p2:
-        st.image(sim["cipher"], caption=f"Terenkripsi (AES-{mode_used})", use_container_width=True)
+        st.image(sim["cipher"], caption=f"Terenkripsi (AES-{mode_used})", width="stretch")
     with p3:
-        st.image(sim["decrypted"], caption="Hasil Dekripsi (Identik 100%)", use_container_width=True)
+        st.image(sim["decrypted"], caption="Hasil Dekripsi (Identik 100%)", width="stretch")
 
     k1, k2, k3, k4, k5 = st.columns(5)
     k1.metric("Entropy Plain", f"{metrics['entropy_plain']:.5f}")
@@ -1254,7 +1424,7 @@ def render_sim_image_tab(catalog: dict[str, dict]):
     k5.metric("Histogram χ²", f"{metrics['hist_chi2']:.1f}", delta=f"p = {metrics['hist_p_value']:.4f}", delta_color="off")
 
     hist_fig = render_histogram_comparison(sim["plain"], sim["cipher"])
-    st.pyplot(hist_fig, use_container_width=True)
+    st.pyplot(hist_fig, width="stretch")
     plt.close(hist_fig)
 
     d1, d2, _ = st.columns([1.0, 1.0, 2.0])
@@ -1264,7 +1434,7 @@ def render_sim_image_tab(catalog: dict[str, dict]):
             data=_array_to_png_bytes(sim["cipher"]),
             file_name=f"cipher_{mode_used.lower()}.png",
             mime="image/png",
-            use_container_width=True,
+            width="stretch",
         )
     with d2:
         st.download_button(
@@ -1272,7 +1442,7 @@ def render_sim_image_tab(catalog: dict[str, dict]):
             data=_array_to_png_bytes(sim["decrypted"]),
             file_name="decrypted_lossless.png",
             mime="image/png",
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -1306,7 +1476,7 @@ def render_sim_text_tab(catalog: dict[str, dict]):
             value="Proyek Akhir Kriptografi UNNES: S-Box XGBoost (0x1E7, C=0x07, NL=112, SAC=0.49951) siap mengamankan data.",
             height=135,
         )
-        if st.button("Enkripsi Teks", type="primary", use_container_width=True):
+        if st.button("Enkripsi Teks", type="primary", width="stretch"):
             try:
                 key_b = normalize_16byte_secret(key_str, mode="utf8")
                 iv_b = normalize_16byte_secret(iv_str, mode="utf8")
@@ -1336,7 +1506,7 @@ def render_sim_text_tab(catalog: dict[str, dict]):
             height=135,
             placeholder="Jalankan enkripsi di sisi kiri atau tempel string heksadesimal di sini...",
         )
-        if st.button("Dekripsi Ciphertext", use_container_width=True):
+        if st.button("Dekripsi Ciphertext", width="stretch"):
             try:
                 compact_hex = "".join(cipher_hex_in.split())
                 if not compact_hex:

@@ -47,6 +47,44 @@ def _resolve_image_metrics_fn():
     return img_eval_fn
 
 
+def _resolve_nbcr_fn():
+    """Otomatis memakai src.image_metrics.bit_change_rate (Mas Rizqi) bila tersedia."""
+    try:
+        from src.image_metrics import bit_change_rate as nbcr_fn  # type: ignore
+    except ImportError:
+        nbcr_fn = None
+    return nbcr_fn
+
+
+def load_mandrill_benchmark_table(
+    json_path: str | Path = Path("results") / "mandrill_metrics.json",
+) -> tuple[dict, pd.DataFrame]:
+    """Memuat hasil uji Mandrill Metrik 2 & 3 (5 S-Box × RGB/Grayscale) dari JSON."""
+    payload = _load_json_if_exists(Path(json_path))
+    if not payload or not isinstance(payload.get("runs"), list):
+        return {}, pd.DataFrame()
+
+    rows = []
+    for run in payload["runs"]:
+        m = run.get("metrics", {})
+        mode = "Grayscale" if run.get("image_mode") == "GRAY" else str(run.get("image_mode", ""))
+        rows.append(
+            {
+                "S-Box": str(run.get("sbox", "")),
+                "Mode": mode,
+                "Entropy Plain": round(float(m.get("entropy_plain", 0.0)), 5),
+                "Entropy Cipher": round(float(m.get("entropy_cipher", 0.0)), 5),
+                "Chi-Square": round(float(m.get("hist_chi2", 0.0)), 2),
+                "p-value": round(float(m.get("hist_p_value", 0.0)), 4),
+                "NPCR (%)": round(float(m.get("npcr", 0.0)), 4),
+                "UACI (%)": round(float(m.get("uaci", 0.0)), 4),
+                "NBCR (%)": round(float(run.get("nbcr", 0.0)), 4),
+                "Lossless": "Ya" if run.get("lossless") else "Tidak",
+            }
+        )
+    return payload, pd.DataFrame(rows)
+
+
 def _load_json_if_exists(path: Path) -> Optional[dict]:
     if not path.exists():
         return None
@@ -366,6 +404,13 @@ def run_image_simulation(
     c2_vis = cipher2[: plain.size].reshape(plain.shape) if cipher2.shape != plain.shape else cipher2
 
     metrics = compute_image_security_metrics(plain, c1_vis, c2_vis)
+    nbcr_fn = _resolve_nbcr_fn()
+    if nbcr_fn is not None:
+        nbcr_val = float(nbcr_fn(c1_vis, c2_vis))
+    else:
+        xor_bits = np.unpackbits(np.bitwise_xor(c1_vis, c2_vis).reshape(-1))
+        nbcr_val = float(xor_bits.mean() * 100.0) if xor_bits.size else 0.0
+
     return {
         "plain": plain,
         "cipher": c1_vis,
@@ -373,5 +418,6 @@ def run_image_simulation(
         "lossless": bool(np.array_equal(plain, decrypted)),
         "encrypt_sec": float(encrypt_sec),
         "decrypt_sec": float(decrypt_sec),
+        "nbcr": nbcr_val,
         "metrics": metrics,
     }

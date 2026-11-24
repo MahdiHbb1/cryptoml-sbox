@@ -50,7 +50,7 @@ Hasil `python -m src.mandrill_eval` (2026-11-22), tersimpan lengkap di `results/
 **Catatan hasil:**
 
 1. Seluruh S-Box memenuhi acuan difusi: NPCR 99.5907–99.6212%, UACI 33.4192–33.5018%, entropy cipher ≥ 7.99927, dan $\chi^2$ p-value ≥ 0.0853 (histogram cipher tidak menolak distribusi uniform). Dekripsi `lossless` pada semua kombinasi.
-2. Selisih antar S-Box sangat kecil (NPCR ≤ 0.031 pp, UACI ≤ 0.069 pp) sehingga tidak ada S-Box yang unggul sistematis pada citra Mandrill; Metrik 1 tetap menjadi pembeda utama kualitas S-Box.
+2. Selisih antar S-Box sangat kecil (NPCR ≤ 0.031 pp, UACI ≤ 0.083 pp) sehingga tidak ada S-Box yang unggul sistematis pada citra Mandrill; Metrik 1 tetap menjadi pembeda utama kualitas S-Box.
 3. Entropy plaintext RGB 7.76244 cocok dengan pengukuran CBC2 Kaggle sebelumnya (7.76244), sedangkan NPCR/UACI berbeda tipis karena kunci, IV, dan posisi piksel uji berbeda. Baris di atas adalah hasil runner repo yang dapat direproduksi ulang.
 
 **Grafik laporan:** `python -m src.visualize_mandrill` → `results/figures/mandrill_entropy_chi2.png` (entropy plaintext vs cipher + uji $\chi^2$ terhadap batas kritis 293.25) dan `results/figures/mandrill_diffusion.png` (selisih NPCR, UACI, NBCR terhadap nilai ideal).

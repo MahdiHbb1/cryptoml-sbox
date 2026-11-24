@@ -152,3 +152,27 @@ def test_compute_image_security_metrics_uses_per_channel_mean_npcr_for_rgb():
     c2[:, :, 0] = 1  # Hanya 1 dari 3 kanal yang berubah -> NPCR rata-rata per kanal = 33.3333%
     m = compute_image_security_metrics(c1, c1, c2)
     assert m["npcr"] == pytest.approx(100.0 / 3.0, abs=1e-6)
+
+
+def test_load_mandrill_benchmark_table_reads_all_10_runs():
+    from src.web_helpers import load_mandrill_benchmark_table
+
+    raw, df = load_mandrill_benchmark_table("results/mandrill_metrics.json")
+    assert raw["cipher_mode"] == "CBC2"
+    assert len(df) == 10
+    assert set(df["Mode"]) == {"RGB", "Grayscale"}
+    assert (df["Lossless"] == "Ya").all()
+
+
+def test_run_image_simulation_includes_nbcr_metric():
+    rng = np.random.default_rng(7)
+    plain = rng.integers(0, 256, size=(16, 16, 3), dtype=np.uint8)
+    sim = run_image_simulation(
+        plain,
+        sbox=build_standard_aes_sbox(),
+        key=b"CryptoML-SBox26!",
+        iv=b"MandrillCBC2-IV!",
+        mode="CBC2",
+    )
+    assert sim["lossless"] is True
+    assert 40.0 <= sim["nbcr"] <= 60.0
