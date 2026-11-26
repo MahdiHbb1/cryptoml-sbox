@@ -25,12 +25,14 @@ def _walsh_all_masks(sbox: np.ndarray) -> np.ndarray:
     return np.rint(F @ _H).astype(np.int32)                        # H simetris
 
 
-def evaluate_sbox(sbox: np.ndarray) -> dict:
+def evaluate_sbox(sbox: np.ndarray, require_bijective: bool = True) -> dict:
     arr = np.asarray(sbox)
     if arr.shape != (_N,) or arr.min() < 0 or arr.max() > 255:
         raise ValueError("S-box harus berbentuk (256,) dengan nilai 0..255")
     sb = arr.astype(np.uint8)
     bijective = len(np.unique(sb)) == _N
+    if require_bijective and not bijective:
+        raise ValueError("S-box harus bijektif (0..255 muncul tepat sekali).")
 
     # Walsh: NL, balance, LAP, WHS
     W = _walsh_all_masks(sb)
