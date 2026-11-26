@@ -45,6 +45,7 @@ ENTROPY_IDEAL = 8.0
 NPCR_IDEAL = 99.609375
 UACI_IDEAL = 33.4635
 NBCR_IDEAL = 50.0
+CORRELATION_IDEAL = 0.0
 
 
 def _as_image(arr: np.ndarray, name: str) -> np.ndarray:
@@ -151,6 +152,55 @@ def bit_change_rate(cipher1_arr: np.ndarray, cipher2_arr: np.ndarray) -> float:
     if total_bits == 0:
         return 0.0
     return float(changed_bits / total_bits) * 100.0
+
+
+def _pearson_adjacent(a: np.ndarray, b: np.ndarray) -> float:
+    """Koefisien korelasi Pearson deterministik antar seluruh pasangan piksel."""
+    x = a.reshape(-1).astype(np.float64)
+    y = b.reshape(-1).astype(np.float64)
+    dx = x - x.mean()
+    dy = y - y.mean()
+    denom = float(np.sqrt(np.dot(dx, dx) * np.dot(dy, dy)))
+    if denom <= 0.0:
+        return 0.0
+    return float(np.clip(np.dot(dx, dy) / denom, -1.0, 1.0))
+
+
+def pixel_correlation(img_arr: np.ndarray) -> dict[str, float]:
+    """Menghitung korelasi piksel bertetangga (horizontal, vertikal, diagonal).
+
+    Dihitung secara deterministik atas seluruh pasangan piksel bertetangga per kanal
+    lalu dirata-ratakan lintas kanal (citra grayscale memiliki 1 kanal). Citra konstan
+    dengan variansi nol mengembalikan 0.0 agar nilai selalu berhingga dan aman untuk JSON.
+
+    Returns:
+        ``dict`` dengan kunci ``horizontal``, ``vertical``, ``diagonal``, dan ``mean_abs``.
+    """
+    img = _as_image(img_arr, "img_arr")
+    height, width = img.shape[:2]
+    if height < 2 or width < 2:
+        raise ValueError(
+            f"Citra harus berukuran minimal 2x2 untuk korelasi piksel, diterima {img.shape}."
+        )
+
+    h_vals: list[float] = []
+    v_vals: list[float] = []
+    d_vals: list[float] = []
+    for ch in _per_channel(img):
+        h_vals.append(_pearson_adjacent(ch[:, :-1], ch[:, 1:]))
+        v_vals.append(_pearson_adjacent(ch[:-1, :], ch[1:, :]))
+        d_vals.append(_pearson_adjacent(ch[:-1, :-1], ch[1:, 1:]))
+
+    horiz = float(np.mean(h_vals))
+    vert = float(np.mean(v_vals))
+    diag = float(np.mean(d_vals))
+    mean_abs = float((abs(horiz) + abs(vert) + abs(diag)) / 3.0)
+    return {
+        "horizontal": horiz,
+        "vertical": vert,
+        "diagonal": diag,
+        "mean_abs": mean_abs,
+    }
 
 
 def evaluate_image_security(

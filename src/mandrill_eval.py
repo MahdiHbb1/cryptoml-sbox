@@ -24,14 +24,21 @@ import numpy as np
 from PIL import Image
 
 from src.aes_affine_generator import build_k44_sbox, build_standard_aes_sbox
-from src.aes_cipher_runner import decrypt_image_array, encrypt_image_array, validate_sbox
+from src.aes_cipher_runner import (
+    decrypt_image_array,
+    describe_cipher_variant,
+    encrypt_image_array,
+    validate_sbox,
+)
 from src.image_metrics import (
+    CORRELATION_IDEAL,
     ENTROPY_IDEAL,
     NBCR_IDEAL,
     NPCR_IDEAL,
     UACI_IDEAL,
     bit_change_rate,
     evaluate_image_security,
+    pixel_correlation,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -153,10 +160,13 @@ def evaluate_sbox_on_image(
     channel = 0 if plain_arr.ndim == 2 else int(flip_channel)
     flipped = ubah_satu_bit(plain_arr, x=x, y=y, channel=channel, bit_pos=flip_bit)
 
-    start = time.perf_counter()
+    start_single = time.perf_counter()
     cipher1 = encrypt_image_array(plain_arr, sbox=sb, key=key, iv=iv, mode=cipher_mode)
+    encrypt_single_sec = time.perf_counter() - start_single
+
+    start_second = time.perf_counter()
     cipher2 = encrypt_image_array(flipped, sbox=sb, key=key, iv=iv, mode=cipher_mode)
-    encrypt_sec = time.perf_counter() - start
+    encrypt_sec = encrypt_single_sec + (time.perf_counter() - start_second)
 
     start = time.perf_counter()
     decrypted = decrypt_image_array(
@@ -164,13 +174,23 @@ def evaluate_sbox_on_image(
     )
     decrypt_sec = time.perf_counter() - start
 
+    cipher1_arr = np.asarray(cipher1, dtype=np.uint8)
+    cipher1_for_corr = (
+        cipher1_arr[: plain_arr.size].reshape(plain_arr.shape)
+        if cipher1_arr.shape != plain_arr.shape
+        else cipher1_arr
+    )
+
     metrics = evaluate_image_security(plain_arr, cipher1, cipher2)
+    corr_plain = pixel_correlation(plain_arr)
+    corr_cipher = pixel_correlation(cipher1_for_corr)
     nilai_asli = int(plain_arr[y, x, channel]) if plain_arr.ndim == 3 else int(plain_arr[y, x])
     nilai_baru = int(flipped[y, x, channel]) if flipped.ndim == 3 else int(flipped[y, x])
 
     return {
         "plain_shape": list(plain_arr.shape),
-        "cipher_shape": list(np.asarray(cipher1).shape),
+        "cipher_shape": list(cipher1_arr.shape),
+        "cipher_variant": describe_cipher_variant(sb, mode=cipher_mode),
         "flip": {
             "x": x,
             "y": y,
@@ -180,8 +200,13 @@ def evaluate_sbox_on_image(
             "pixel_flipped": nilai_baru,
         },
         "metrics": metrics,
+        "pixel_correlation": {
+            "plain": corr_plain,
+            "cipher": corr_cipher,
+        },
         "nbcr": bit_change_rate(cipher1, cipher2),
         "lossless": bool(np.array_equal(plain_arr, decrypted)),
+        "encrypt_single_sec": float(encrypt_single_sec),
         "encrypt_sec": float(encrypt_sec),
         "decrypt_sec": float(decrypt_sec),
     }
@@ -242,6 +267,7 @@ def run_mandrill_evaluation(
             "npcr": NPCR_IDEAL,
             "uaci": UACI_IDEAL,
             "nbcr": NBCR_IDEAL,
+            "correlation": CORRELATION_IDEAL,
         },
         "sboxes": list(sboxes),
         "images": {},
