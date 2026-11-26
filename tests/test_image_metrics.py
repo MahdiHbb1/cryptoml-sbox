@@ -2,10 +2,12 @@ import numpy as np
 import pytest
 
 from src.image_metrics import (
+    CORRELATION_IDEAL,
     bit_change_rate,
     evaluate_image_security,
     histogram_chi_square,
     npcr_uaci,
+    pixel_correlation,
     shannon_entropy,
 )
 
@@ -140,3 +142,45 @@ def test_citra_berdimensi_tidak_valid_ditolak():
         shannon_entropy(np.zeros(16, dtype=np.uint8))
     with pytest.raises(ValueError):
         shannon_entropy(np.zeros((4, 4, 2), dtype=np.uint8))
+
+
+def test_pixel_correlation_citra_gradasi_mendekati_satu():
+    y, x = np.meshgrid(np.linspace(0, 255, 64), np.linspace(0, 255, 64), indexing="ij")
+    grad = np.clip(np.rint(0.5 * x + 0.5 * y), 0, 255).astype(np.uint8)
+
+    corr = pixel_correlation(grad)
+
+    assert CORRELATION_IDEAL == pytest.approx(0.0)
+    assert set(corr) == {"horizontal", "vertical", "diagonal", "mean_abs"}
+    assert all(isinstance(v, float) and np.isfinite(v) for v in corr.values())
+    assert corr["horizontal"] > 0.95
+    assert corr["vertical"] > 0.95
+    assert corr["diagonal"] > 0.95
+    assert corr["mean_abs"] > 0.95
+
+
+def test_pixel_correlation_citra_acak_rgb_mendekati_nol():
+    rng = np.random.default_rng(42)
+    noise = rng.integers(0, 256, size=(64, 64, 3), dtype=np.uint8)
+
+    corr = pixel_correlation(noise)
+
+    assert abs(corr["horizontal"]) < 0.08
+    assert abs(corr["vertical"]) < 0.08
+    assert abs(corr["diagonal"]) < 0.08
+    assert 0.0 <= corr["mean_abs"] < 0.08
+
+
+def test_pixel_correlation_citra_konstan_mengembalikan_nol_tanpa_nan():
+    flat = np.full((16, 16), 120, dtype=np.uint8)
+
+    corr = pixel_correlation(flat)
+
+    assert all(v == pytest.approx(0.0, abs=1e-12) for v in corr.values())
+
+
+def test_pixel_correlation_menolak_citra_terlalu_kecil():
+    with pytest.raises(ValueError):
+        pixel_correlation(np.zeros((1, 8), dtype=np.uint8))
+    with pytest.raises(ValueError):
+        pixel_correlation(np.zeros((8, 1, 3), dtype=np.uint8))

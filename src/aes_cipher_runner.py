@@ -51,6 +51,33 @@ def build_inverse_sbox(sbox: np.ndarray) -> np.ndarray:
     return inv
 
 
+def describe_cipher_variant(sbox: np.ndarray, mode: str = "CBC2") -> dict:
+    """Mendokumentasikan pemakaian S-Box pada AES-128 agar label standar vs modifikasi eksplisit.
+
+    Pada runner ini, ``sbox`` diterapkan pada ``SubBytes``, ``InvSubBytes``, dan
+    ``KeyExpansion.SubWord``, sementara ``MixColumns``/``InvMixColumns`` tetap
+    memakai aritmetika GF(2^8) standar AES (0x11B).
+    """
+    if mode not in ("ECB", "CBC", "CBC2"):
+        raise ValueError(f"Mode tidak dikenal: {mode!r}. Pilih 'ECB', 'CBC', atau 'CBC2'.")
+    sb = validate_sbox(sbox)
+    is_std = bool(np.array_equal(sb, build_standard_aes_sbox()))
+    if is_std and mode in ("ECB", "CBC"):
+        label = f"AES-128 Standar (FIPS-197, Mode {mode})"
+    elif is_std:
+        label = "AES-128 S-Box Standar (Mode CBC2 Modifikasi)"
+    else:
+        label = f"AES-128 Modifikasi (Custom S-Box, Mode {mode})"
+
+    return {
+        "is_standard_sbox": is_std,
+        "cipher_mode": mode,
+        "sbox_applied_to": ["SubBytes", "InvSubBytes", "KeyExpansion.SubWord"],
+        "uses_standard_mixcolumns_gf256": True,
+        "cipher_label": label,
+    }
+
+
 def expand_key(key: bytes, sbox: np.ndarray) -> np.ndarray:
     """Ekspansi kunci AES-128 (16 byte -> 11 round key ukuran 16 byte)."""
     if not isinstance(key, (bytes, bytearray)) or len(key) != 16:

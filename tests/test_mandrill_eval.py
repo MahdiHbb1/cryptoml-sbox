@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from src.aes_affine_generator import build_standard_aes_sbox
+from src.aes_affine_generator import build_k44_sbox, build_standard_aes_sbox
+from src.aes_cipher_runner import describe_cipher_variant
 from src.mandrill_eval import (
     DEFAULT_KEY,
     DEFAULT_IV,
@@ -192,3 +193,50 @@ def test_write_report_menyimpan_json_yang_dapat_dibaca(tmp_path):
     assert isi["runs"][0]["image_mode"] == "GRAY"
     assert isi["image_path"] == path.as_posix()
     assert len(isi["runs"]) == 3
+
+
+def test_evaluate_sbox_mencatat_korelasi_piksel_waktu_tunggal_dan_label_aes_modifikasi():
+    y, x = np.meshgrid(np.linspace(0, 255, 32), np.linspace(0, 255, 32), indexing="ij")
+    base = np.clip(np.rint(0.6 * x + 0.4 * y), 0, 255).astype(np.uint8)
+    plain = np.stack([base, np.roll(base, 3, axis=1), 255 - base], axis=2)
+
+    custom_sbox = np.random.default_rng(123).permutation(256).astype(np.uint8)
+    hasil = evaluate_sbox_on_image(plain, custom_sbox, cipher_mode="CBC2")
+
+    assert hasil["lossless"] is True
+    assert set(hasil["metrics"]) == CONTRACT_KEYS
+    assert 0.0 <= hasil["encrypt_single_sec"] <= hasil["encrypt_sec"]
+
+    corr = hasil["pixel_correlation"]
+    assert set(corr) == {"plain", "cipher"}
+    assert set(corr["plain"]) == {"horizontal", "vertical", "diagonal", "mean_abs"}
+    assert set(corr["cipher"]) == {"horizontal", "vertical", "diagonal", "mean_abs"}
+    assert corr["plain"]["mean_abs"] > 0.90
+    assert corr["cipher"]["mean_abs"] < 0.25
+
+    variant = hasil["cipher_variant"]
+    assert variant["is_standard_sbox"] is False
+    assert "Modifikasi" in variant["cipher_label"]
+    assert variant["sbox_applied_to"] == ["SubBytes", "InvSubBytes", "KeyExpansion.SubWord"]
+    assert variant["uses_standard_mixcolumns_gf256"] is True
+
+
+def test_describe_cipher_variant_membedakan_aes_standar_dan_modifikasi():
+    aes_sb = build_standard_aes_sbox()
+    k44_sb = build_k44_sbox()
+
+    std_cbc = describe_cipher_variant(aes_sb, mode="CBC")
+    std_cbc2 = describe_cipher_variant(aes_sb, mode="CBC2")
+    mod_cbc2 = describe_cipher_variant(k44_sb, mode="CBC2")
+
+    assert std_cbc["is_standard_sbox"] is True
+    assert "Standar" in std_cbc["cipher_label"]
+    assert "Modifikasi" not in std_cbc["cipher_label"]
+
+    assert std_cbc2["is_standard_sbox"] is True
+    assert "CBC2" in std_cbc2["cipher_label"]
+    assert "Modifikasi" in std_cbc2["cipher_label"]
+
+    assert mod_cbc2["is_standard_sbox"] is False
+    assert "Custom S-Box" in mod_cbc2["cipher_label"]
+    assert "Modifikasi" in mod_cbc2["cipher_label"]
