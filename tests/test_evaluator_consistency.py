@@ -4,12 +4,45 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.composite_score import compute_composite_score as cs_new
-from src.sbox_metrics import evaluate_sbox as eval_new
-from src.train_xgboost import compute_composite_score as cs_old
-from src.train_xgboost import evaluate_sbox_default as eval_old
+from src.composite_score import (
+    COMPOSITE_SCORE_VERSION,
+    compute_composite_score as cs_new,
+)
+from src.sbox_metrics import (
+    EVALUATOR_VERSION,
+    evaluate_sbox as eval_new,
+)
+from src.train_xgboost import (
+    compute_composite_score as cs_old,
+    evaluate_sbox_default as eval_old,
+)
 
-BASE_DIR = Path("data/baselines")
+BASE_DIR = (
+    Path(__file__).resolve().parents[1]
+    / "data"
+    / "baselines"
+)
+
+def test_versions_exist():
+    assert isinstance(EVALUATOR_VERSION, str)
+    assert isinstance(COMPOSITE_SCORE_VERSION, str)
+
+    assert len(EVALUATOR_VERSION) > 0
+    assert len(COMPOSITE_SCORE_VERSION) > 0
+
+
+def test_float_input_rejected():
+    """Input bertipe float harus ditolak."""
+
+    with pytest.raises(TypeError):
+        eval_new(
+            np.linspace(
+                0,
+                255,
+                256,
+                dtype=float,
+            )
+        )
 
 
 def _baseline(name):

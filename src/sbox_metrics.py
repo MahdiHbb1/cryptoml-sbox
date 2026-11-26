@@ -4,6 +4,7 @@ Sengaja mandiri: tidak mengimpor train_xgboost / dataset_builder
 agar tidak terjadi circular import (ImportError yang ditelan try/except).
 """
 import numpy as np
+EVALUATOR_VERSION = "2.0.0"
 
 _N = 256
 _IDX = np.arange(_N)
@@ -25,8 +26,58 @@ def _walsh_all_masks(sbox: np.ndarray) -> np.ndarray:
     return np.rint(F @ _H).astype(np.int32)                        # H simetris
 
 
-def evaluate_sbox(sbox: np.ndarray, require_bijective: bool = True) -> dict:
+def evaluate_sbox(
+    sbox: np.ndarray,
+    require_bijective: bool = True,
+) -> dict:
+    """
+    Evaluasi seluruh metrik kriptografi untuk S-box 8×8.
+
+    Parameters
+    ----------
+    sbox
+        Array berukuran (256,) yang berisi permutasi nilai 0–255.
+
+    require_bijective
+        Jika True, evaluator akan menolak S-box yang tidak
+        merupakan permutasi bijektif.
+
+    Returns
+    -------
+    dict
+        Dictionary yang berisi metrik:
+
+        - bijective
+        - balanced
+        - nl
+        - bic_nl
+        - sac_mean
+        - sac_max_err
+        - bic_sac
+        - du
+        - dap
+        - lap
+        - fixed_points
+        - whs_cost
+
+    Notes
+    -----
+    LAP dilaporkan sebagai **maximum linear bias**, bukan
+    probabilitas langsung.
+
+        lap = max_w / 512
+
+    Sebagai contoh, nilai AES ≈ 0.0625 yang ekuivalen dengan
+
+        P = 0.5 ± 0.0625
+    """
+
     arr = np.asarray(sbox)
+
+    if not np.issubdtype(arr.dtype, np.integer):
+        raise TypeError(
+            "S-box harus bertipe integer (misalnya uint8)."
+        )
     if arr.shape != (_N,) or arr.min() < 0 or arr.max() > 255:
         raise ValueError("S-box harus berbentuk (256,) dengan nilai 0..255")
     sb = arr.astype(np.uint8)
@@ -39,6 +90,22 @@ def evaluate_sbox(sbox: np.ndarray, require_bijective: bool = True) -> dict:
     absW = np.abs(W)
     max_w = int(absW.max())
     nl = int(128 - max_w // 2)
+    # Linear Approximation Probability (LAP)
+    #
+    # Yang dilaporkan evaluator adalah maximum linear bias:
+    #
+    #     lap = max_w / 512
+    #
+    # BUKAN probabilitas langsung.
+    #
+    # Sebagai contoh:
+    #
+    # AES Standard ≈ 0.0625
+    #
+    # ekuivalen dengan probabilitas
+    #
+    #     P = 0.5 ± 0.0625
+    #
     lap = max_w / 512.0
     balanced = bool(np.all(W[:, 0] == 0))
     whs_cost = float(np.mean((absW - 16.0) ** 4) ** 0.25)   # sama dengan fallback
