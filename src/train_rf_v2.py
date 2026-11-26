@@ -5,7 +5,7 @@ import argparse
 from src.dataset_builder import build_dataset
 from src.sbox_metrics import evaluate_sbox
 from src.train_rf import save_grouped_rf, train_grouped_rf
-from src.train_xgboost import compute_composite_score
+from src.composite_score import compute_composite_score
 
 
 def evaluate(box):
