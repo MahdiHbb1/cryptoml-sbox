@@ -61,3 +61,13 @@ def test_random_search_keeps_initial_and_respects_budget():
     assert initial['full_evaluations'] == 1
     assert search['full_evaluations'] == 7
     assert search['best_score'] >= initial['best_score']
+
+
+def test_restart_keeps_global_best_and_budget():
+    from src.ml_reconstruction import reconstruct
+
+    result = reconstruct(lambda box: 1.0, mode='fast', patience=1, restarts=1,
+                         max_evaluations=5)
+    assert result['restarts'] == 1
+    assert result['full_evaluations'] == 5
+    np.testing.assert_array_equal(result['sbox'], result['initial_sbox'])

@@ -63,6 +63,8 @@ def train_grouped_rf(rows, *, n_estimators=300, seed=42, estimator=None):
 
 def save_grouped_rf(directory, model, metrics, rows, *, kind="rf"):
     """Export a fitted model and its split manifest to a local artifact directory."""
+    from hashlib import sha256
+
     import joblib
     import sklearn
     from src.dataset_builder import FEATURE_NAMES, FEATURE_SCHEMA_VERSION
@@ -77,6 +79,11 @@ def save_grouped_rf(directory, model, metrics, rows, *, kind="rf"):
         'feature_names': list(FEATURE_NAMES),
         'split_by_sbox': {row['sbox_id']: row['split'] for row in rows},
         'family_by_sbox': {row['sbox_id']: row['family_id'] for row in rows},
+        'split_sha256': sha256(json.dumps(sorted(
+            (row['sbox_id'], row['family_id'], row['split']) for row in rows
+        )).encode()).hexdigest(),
+        'dataset_sha256': sha256(json.dumps(sorted(rows, key=lambda row: row['sbox_id']),
+                                             sort_keys=True, allow_nan=False).encode()).hexdigest(),
         'sklearn_version': sklearn.__version__,
         'model_parameters': model.get_params(deep=False) if kind == "rf" else {
             f"mlp__{key}": value for key, value in model.named_steps["mlpregressor"].get_params().items()
