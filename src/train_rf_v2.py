@@ -20,10 +20,19 @@ def main():
     parser.add_argument('--family-size', type=int, default=10)
     parser.add_argument('--trees', type=int, default=300)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--model', choices=('rf', 'mlp'), default='rf')
     args = parser.parse_args()
+    estimator = None
+    if args.model == 'mlp':
+        from sklearn.neural_network import MLPRegressor
+        from sklearn.pipeline import make_pipeline
+        from sklearn.preprocessing import StandardScaler
+
+        estimator = make_pipeline(StandardScaler(), MLPRegressor(
+            hidden_layer_sizes=(32, 16), max_iter=1000, random_state=args.seed))
     rows = build_dataset(args.families, args.family_size, args.seed, evaluate)
-    model, metrics = train_grouped_rf(rows, n_estimators=args.trees, seed=args.seed)
-    save_grouped_rf(args.output, model, metrics, rows)
+    model, metrics = train_grouped_rf(rows, n_estimators=args.trees, seed=args.seed, estimator=estimator)
+    save_grouped_rf(args.output, model, metrics, rows, kind=args.model)
 
 
 if __name__ == '__main__':

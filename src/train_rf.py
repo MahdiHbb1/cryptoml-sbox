@@ -21,7 +21,7 @@ from src.dataset_builder import (
 from src.train_xgboost import load_dataset_csv, screen_and_select_best_sbox
 
 
-def train_grouped_rf(rows, *, n_estimators=300, seed=42):
+def train_grouped_rf(rows, *, n_estimators=300, seed=42, estimator=None):
     """Fit on the fixed family split; report held-out metrics."""
     import pandas as pd
     from src.dataset_builder import FEATURE_NAMES
@@ -46,19 +46,22 @@ def train_grouped_rf(rows, *, n_estimators=300, seed=42):
 
     x_train, y_train = arrays('train')
     x_test, y_test = arrays('test')
-    model = RandomForestRegressor(n_estimators=n_estimators, random_state=seed, n_jobs=1)
+    model = estimator if estimator is not None else RandomForestRegressor(
+        n_estimators=n_estimators, random_state=seed, n_jobs=1)
     started = time.perf_counter()
     model.fit(x_train, y_train)
     elapsed = time.perf_counter() - started
     predicted = model.predict(x_test)
     mse = float(mean_squared_error(y_test, predicted))
-    return model, dict(n_train=len(y_train), n_test=len(y_test), mse=mse,
+    metrics = dict(n_train=len(y_train), n_test=len(y_test), mse=mse,
                        rmse=float(np.sqrt(mse)), mae=float(mean_absolute_error(y_test, predicted)),
-                       r2=float(r2_score(y_test, predicted)), train_time_sec=elapsed,
-                       feature_importances=dict(zip(FEATURE_NAMES, model.feature_importances_.tolist())))
+                       r2=float(r2_score(y_test, predicted)), train_time_sec=elapsed)
+    if hasattr(model, "feature_importances_"):
+        metrics["feature_importances"] = dict(zip(FEATURE_NAMES, model.feature_importances_.tolist()))
+    return model, metrics
 
 
-def save_grouped_rf(directory, model, metrics, rows):
+def save_grouped_rf(directory, model, metrics, rows, *, kind="rf"):
     """Export a fitted model and its split manifest to a local artifact directory."""
     import joblib
     import sklearn
@@ -69,16 +72,19 @@ def save_grouped_rf(directory, model, metrics, rows):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     manifest = {
+        'model_kind': kind,
         'feature_schema_version': FEATURE_SCHEMA_VERSION,
         'feature_names': list(FEATURE_NAMES),
         'split_by_sbox': {row['sbox_id']: row['split'] for row in rows},
         'family_by_sbox': {row['sbox_id']: row['family_id'] for row in rows},
         'sklearn_version': sklearn.__version__,
-        'model_parameters': model.get_params(),
+        'model_parameters': model.get_params(deep=False) if kind == "rf" else {
+            f"mlp__{key}": value for key, value in model.named_steps["mlpregressor"].get_params().items()
+        },
         'metrics': metrics,
     }
     text = json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False)
-    with (directory / 'rf.joblib').open('xb') as output:
+    with (directory / f"{kind}.joblib").open('xb') as output:
         joblib.dump(model, output, compress=3)
     with (directory / 'manifest.json').open('x', encoding='utf-8') as output:
         output.write(text + '\n')

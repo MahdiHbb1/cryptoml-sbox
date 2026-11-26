@@ -49,3 +49,15 @@ def test_explicit_evaluation_cap_and_inverse():
     assert len(calls) == result['full_evaluations'] == 5
     np.testing.assert_array_equal(result['initial_sbox'], calls[0])
     np.testing.assert_array_equal(result['inverse_sbox'][result['sbox']], np.arange(256))
+
+
+def test_random_search_keeps_initial_and_respects_budget():
+    from src.ml_reconstruction import reconstruct
+
+    score = lambda box: float(box[0])
+    initial = reconstruct(score, strategy='random_permutation', seed=7)
+    search = reconstruct(score, strategy='random_search', seed=7, max_evaluations=7)
+    np.testing.assert_array_equal(initial['sbox'], search['initial_sbox'])
+    assert initial['full_evaluations'] == 1
+    assert search['full_evaluations'] == 7
+    assert search['best_score'] >= initial['best_score']

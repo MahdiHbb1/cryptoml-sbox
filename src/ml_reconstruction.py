@@ -8,11 +8,19 @@ from src.permutation_v2 import initialize, mutate
 
 
 def reconstruct(score, predict=None, *, seed=42, iterations=50, pool_size=20, top_k=3,
-                max_evaluations=None):
+                max_evaluations=None, strategy="top_k"):
     if max_evaluations is not None and (not isinstance(max_evaluations, int) or max_evaluations < 1):
         raise ValueError('max_evaluations must be a positive integer')
     if not 1 <= top_k <= pool_size <= 32640 or iterations < 0:
         raise ValueError('Invalid search budget')
+    if strategy not in ("top_k", "random_permutation", "random_search", "random_swap"):
+        raise ValueError("Unknown strategy")
+    if strategy != "top_k" and predict is not None:
+        raise ValueError("Model ranking requires top_k strategy")
+    if strategy == "random_permutation":
+        iterations = 0
+    elif strategy == "random_swap":
+        pool_size = top_k = 1
     mutation_seed, ranking_seed = np.random.SeedSequence(seed).spawn(2)
     rng = np.random.default_rng(mutation_seed)
     ranking_rng = np.random.default_rng(ranking_seed)
@@ -33,7 +41,8 @@ def reconstruct(score, predict=None, *, seed=42, iterations=50, pool_size=20, to
     for iteration in range(iterations):
         pool = {}
         for _ in range(pool_size * 20):
-            candidate = mutate(current, 'single_swap', rng)
+            candidate = (initialize(rng) if strategy == 'random_search'
+                         else mutate(current, 'single_swap', rng))
             pool.setdefault(candidate.tobytes(), candidate)
             if len(pool) == pool_size:
                 break
@@ -82,8 +91,9 @@ def main():
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
-    parser.add_argument('--model', type=Path, help='Trusted local RF artifact directory; omit for random Top-K')
+    parser.add_argument('--model', type=Path, help='Trusted local RF or MLP artifact directory; omit for random Top-K')
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--strategy', choices=('top_k', 'random_permutation', 'random_search', 'random_swap'), default='top_k')
     parser.add_argument('--budget', type=int, default=151)
     args = parser.parse_args()
     predict = None
@@ -92,17 +102,21 @@ def main():
         if (manifest['feature_schema_version'] != FEATURE_SCHEMA_VERSION
                 or tuple(manifest['feature_names']) != FEATURE_NAMES):
             parser.error('Incompatible feature schema')
-        model = joblib.load(args.model / 'rf.joblib')
+        kind = manifest.get("model_kind", "rf")
+        if kind not in ("rf", "mlp"):
+            parser.error("Unsupported model kind")
+        model = joblib.load(args.model / f"{kind}.joblib")
         if tuple(model.feature_names_in_) != FEATURE_NAMES:
             parser.error('Incompatible model feature schema')
-        model.n_jobs = 1
+        if kind == "rf":
+            model.n_jobs = 1
         predict = model.predict
     result = reconstruct(lambda box: evaluate(box)['composite_score'], predict,
-                         seed=args.seed, max_evaluations=args.budget)
+                         seed=args.seed, max_evaluations=args.budget, strategy=args.strategy)
     for key in ('sbox', 'initial_sbox', 'inverse_sbox'):
         result[key] = result[key].tolist()
     result.update(model=str(args.model) if args.model else None, seed=args.seed,
-                  max_evaluations=args.budget)
+                  max_evaluations=args.budget, strategy=args.strategy)
     with args.output.open('x', encoding='utf-8') as output:
         json.dump(result, output, allow_nan=False, indent=2)
 

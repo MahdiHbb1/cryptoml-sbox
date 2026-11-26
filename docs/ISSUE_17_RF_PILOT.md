@@ -29,4 +29,10 @@ python -m src.ml_reconstruction /tmp/opencode/issue17-rf.json --model /tmp/openc
 python -m src.ml_reconstruction /tmp/opencode/issue17-random.json --seed 100
 ```
 
-Gunakan path keluaran baru setiap kali. JSON berisi S-Box awal, akhir dan invers, histori, seed, serta jumlah evaluasi penuh aktual. CLI sekarang memakai evaluator dan skor dari checkout lokal; hasilnya bukan training final yang bergantung pada kontrak #16.
+Gunakan path keluaran baru setiap kali. JSON berisi S-Box awal, akhir dan invers, histori, seed, serta jumlah evaluasi penuh aktual. CLI memakai evaluator dan Composite Score bersama dari branch `v2`.
+
+## MLP pada split keluarga yang sama
+
+Tambahkan `--model mlp` pada perintah training dan gunakan direktori keluaran baru. CLI rekonstruksi memilih RF atau MLP dari manifest. Pada dataset 1.500 baris (1.050 train, 220 validation, 230 test), MLP mencatat MAE 3,8210, MSE 22,0626, RMSE 4,6971, dan R² −0,0677. Optimizer mencapai batas 1.000 iterasi tanpa konvergensi. Pada seed pencarian 100, MLP mencapai skor 86,046 dalam 151 evaluasi penuh. Ini satu smoke run, bukan hasil komparatif final.
+
+`--strategy random_permutation` hanya mengevaluasi titik awal. `random_search` mengambil permutasi independen; `random_swap` menguji satu swap per iterasi. Anggaran evaluasi adalah batas atas: kedua metode bisa berhenti lebih awal karena batas iterasi. `top_k` tanpa model memakai shortlist acak.
