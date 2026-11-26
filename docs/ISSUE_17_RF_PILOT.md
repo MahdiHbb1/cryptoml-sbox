@@ -19,3 +19,14 @@ Rata-rata selisih +0.120; simpangan baku sampel 3.701. Pilot lima seed belum men
 20 pool dari seed 200–219, masing-masing 20 mutasi single swap unik dari permutasi awal. Rata-rata Spearman RF: 0.00334 (20 pool valid). Rata-rata selisih skor kandidat terbaik di seluruh pool terhadap kandidat terbaik di shortlist Top-3: 2.57549 untuk RF, 2.10392 untuk ekspektasi pemilihan acak tanpa pengembalian. Lebih kecil lebih baik. Diagnostik ini hanya menguji pool dari state awal, bukan pool selama rekonstruksi.
 
 Ekspor `save_grouped_rf` menyimpan `rf.joblib` dan `manifest.json`. Uji lokal memuat ulang model dan memverifikasi prediksi identik untuk semua 230 sampel test. Muat hanya model Joblib dari sumber tepercaya.
+
+## Jalankan ulang
+
+```bash
+mkdir -p /tmp/opencode
+python -m src.train_rf_v2 /tmp/opencode/issue17-model
+python -m src.ml_reconstruction /tmp/opencode/issue17-rf.json --model /tmp/opencode/issue17-model --seed 100
+python -m src.ml_reconstruction /tmp/opencode/issue17-random.json --seed 100
+```
+
+Gunakan path keluaran baru setiap kali. JSON berisi S-Box awal, akhir dan invers, histori, seed, serta jumlah evaluasi penuh aktual. CLI sekarang memakai evaluator dan skor dari checkout lokal; hasilnya bukan training final yang bergantung pada kontrak #16.

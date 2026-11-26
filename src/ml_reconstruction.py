@@ -68,3 +68,44 @@ def reconstruct(score, predict=None, *, seed=42, iterations=50, pool_size=20, to
     return {'sbox': current, 'initial_sbox': initial, 'inverse_sbox': inverse,
             'initial_score': initial_score, 'best_score': current_score,
             'history': history, 'full_evaluations': len(cache)}
+
+
+def main():
+    import argparse
+    import json
+    from pathlib import Path
+
+    import joblib
+
+    from src.dataset_builder import FEATURE_SCHEMA_VERSION
+    from src.train_rf_v2 import evaluate
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('output', type=Path)
+    parser.add_argument('--model', type=Path, help='Trusted local RF artifact directory; omit for random Top-K')
+    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--budget', type=int, default=151)
+    args = parser.parse_args()
+    predict = None
+    if args.model is not None:
+        manifest = json.loads((args.model / 'manifest.json').read_text(encoding='utf-8'))
+        if (manifest['feature_schema_version'] != FEATURE_SCHEMA_VERSION
+                or tuple(manifest['feature_names']) != FEATURE_NAMES):
+            parser.error('Incompatible feature schema')
+        model = joblib.load(args.model / 'rf.joblib')
+        if tuple(model.feature_names_in_) != FEATURE_NAMES:
+            parser.error('Incompatible model feature schema')
+        model.n_jobs = 1
+        predict = model.predict
+    result = reconstruct(lambda box: evaluate(box)['composite_score'], predict,
+                         seed=args.seed, max_evaluations=args.budget)
+    for key in ('sbox', 'initial_sbox', 'inverse_sbox'):
+        result[key] = result[key].tolist()
+    result.update(model=str(args.model) if args.model else None, seed=args.seed,
+                  max_evaluations=args.budget)
+    with args.output.open('x', encoding='utf-8') as output:
+        json.dump(result, output, allow_nan=False, indent=2)
+
+
+if __name__ == '__main__':
+    main()

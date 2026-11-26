@@ -46,7 +46,7 @@ def train_grouped_rf(rows, *, n_estimators=300, seed=42):
 
     x_train, y_train = arrays('train')
     x_test, y_test = arrays('test')
-    model = RandomForestRegressor(n_estimators=n_estimators, random_state=seed, n_jobs=-1)
+    model = RandomForestRegressor(n_estimators=n_estimators, random_state=seed, n_jobs=1)
     started = time.perf_counter()
     model.fit(x_train, y_train)
     elapsed = time.perf_counter() - started

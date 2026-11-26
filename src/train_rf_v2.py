@@ -1,0 +1,30 @@
+"""Offline training CLI for the grouped permutation dataset."""
+
+import argparse
+
+from src.dataset_builder import build_dataset
+from src.sbox_metrics import evaluate_sbox
+from src.train_rf import save_grouped_rf, train_grouped_rf
+from src.train_xgboost import compute_composite_score
+
+
+def evaluate(box):
+    metrics = evaluate_sbox(box)
+    return dict(metrics, composite_score=compute_composite_score(metrics))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('output')
+    parser.add_argument('--families', type=int, default=150)
+    parser.add_argument('--family-size', type=int, default=10)
+    parser.add_argument('--trees', type=int, default=300)
+    parser.add_argument('--seed', type=int, default=42)
+    args = parser.parse_args()
+    rows = build_dataset(args.families, args.family_size, args.seed, evaluate)
+    model, metrics = train_grouped_rf(rows, n_estimators=args.trees, seed=args.seed)
+    save_grouped_rf(args.output, model, metrics, rows)
+
+
+if __name__ == '__main__':
+    main()
