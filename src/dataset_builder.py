@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from hashlib import sha256
 from pathlib import Path
 from typing import Callable
 
@@ -16,6 +17,62 @@ from src.train_xgboost import (
     evaluate_sbox_default,
     extract_fast_features_default,
 )
+
+
+from src.permutation_v2 import initialize, mutate
+
+
+FEATURE_SCHEMA_VERSION = 'permutation-v2.1'
+FEATURE_NAMES = ('hamming_mean', 'hamming_std', 'displacement_mean', 'displacement_std')
+_VALUES = np.arange(256, dtype=np.uint8)
+_WEIGHTS = np.array([i.bit_count() for i in range(256)])
+_OPERATORS = (('single_swap', 1), ('multi_swap', 2), ('three_cycle', 1), ('segment_reversal', 4))
+
+
+def extract_features(box):
+    if box.shape != (256,) or box.dtype != np.uint8 or np.unique(box).size != 256:
+        raise ValueError('Expected a uint8 permutation of 0–255')
+    hamming = _WEIGHTS[box ^ _VALUES]
+    displacement = np.abs(box.astype(np.int16) - _VALUES)
+    return dict(zip(FEATURE_NAMES, map(float, (hamming.mean(), hamming.std(), displacement.mean(), displacement.std()))))
+
+
+def build_dataset(n_families, family_size, seed, evaluate):
+    """Split whole families. Evaluator returns metrics including composite_score."""
+    if n_families < 3 or family_size < 1:
+        raise ValueError('Need at least three families and one row per family')
+    split_rng, *family_seeds = np.random.SeedSequence(seed).spawn(n_families + 1)
+    order = np.random.default_rng(split_rng).permutation(n_families)
+    n_train = min(n_families - 2, max(1, round(0.70 * n_families)))
+    n_val = min(n_families - n_train - 1, max(1, round(0.15 * n_families)))
+    splits = {int(f): 'train' if i < n_train else 'validation' if i < n_train + n_val else 'test'
+              for i, f in enumerate(order)}
+    rows, seen = [], set()
+    for family, sequence in enumerate(family_seeds):
+        family_seed = int(sequence.generate_state(1, dtype=np.uint64)[0])
+        rng = np.random.default_rng(family_seed)
+        parent, parent_id = None, None
+        for iteration in range(family_size):
+            operator, intensity = _OPERATORS[(iteration - 1) % len(_OPERATORS)] if iteration else ('initial', 0)
+            for _ in range(100):
+                box = initialize(rng) if parent is None else mutate(parent, operator, rng, intensity)
+                box_id = sha256(box.tobytes()).hexdigest()
+                if box_id not in seen:
+                    break
+            else:
+                raise RuntimeError('Could not sample a unique permutation')
+            seen.add(box_id)
+            features = extract_features(box)
+            metrics = dict(evaluate(box.copy()))
+            score = float(metrics['composite_score'])
+            if not np.isfinite(score):
+                raise ValueError('Composite Score must be finite')
+            rows.append({'sbox_id': box_id, 'parent_id': parent_id, 'family_id': family,
+                         'seed': family_seed, 'iteration': iteration, 'operator': operator,
+                         'intensity': intensity, 'split': splits[family], 'sbox': box.tolist(),
+                         'features': features, 'metrics': metrics, 'composite_score': score})
+            parent, parent_id = box, box_id
+    return rows
 
 
 def extract_fast_features(sbox: np.ndarray) -> np.ndarray:

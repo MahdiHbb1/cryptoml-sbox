@@ -21,6 +21,69 @@ from src.dataset_builder import (
 from src.train_xgboost import load_dataset_csv, screen_and_select_best_sbox
 
 
+def train_grouped_rf(rows, *, n_estimators=300, seed=42):
+    """Fit on the fixed family split; report held-out metrics."""
+    import pandas as pd
+    from src.dataset_builder import FEATURE_NAMES
+
+    groups = {name: [] for name in ('train', 'validation', 'test')}
+    families, ids = {}, set()
+    for row in rows:
+        split = row['split']
+        if split not in groups or families.setdefault(row['family_id'], split) != split:
+            raise ValueError('Invalid split or family leakage')
+        if row['sbox_id'] in ids or set(row['features']) != set(FEATURE_NAMES):
+            raise ValueError('Duplicate S-Box or incompatible feature schema')
+        ids.add(row['sbox_id'])
+        groups[split].append(row)
+    if not groups['train'] or len(groups['test']) < 2:
+        raise ValueError('Need training rows and at least two test rows')
+
+    def arrays(split):
+        items = groups[split]
+        return (pd.DataFrame([row['features'] for row in items], columns=FEATURE_NAMES),
+                np.asarray([row['composite_score'] for row in items], dtype=float))
+
+    x_train, y_train = arrays('train')
+    x_test, y_test = arrays('test')
+    model = RandomForestRegressor(n_estimators=n_estimators, random_state=seed, n_jobs=-1)
+    started = time.perf_counter()
+    model.fit(x_train, y_train)
+    elapsed = time.perf_counter() - started
+    predicted = model.predict(x_test)
+    mse = float(mean_squared_error(y_test, predicted))
+    return model, dict(n_train=len(y_train), n_test=len(y_test), mse=mse,
+                       rmse=float(np.sqrt(mse)), mae=float(mean_absolute_error(y_test, predicted)),
+                       r2=float(r2_score(y_test, predicted)), train_time_sec=elapsed,
+                       feature_importances=dict(zip(FEATURE_NAMES, model.feature_importances_.tolist())))
+
+
+def save_grouped_rf(directory, model, metrics, rows):
+    """Export a fitted model and its split manifest to a local artifact directory."""
+    import joblib
+    import sklearn
+    from src.dataset_builder import FEATURE_NAMES, FEATURE_SCHEMA_VERSION
+
+    if tuple(model.feature_names_in_) != FEATURE_NAMES:
+        raise ValueError('Incompatible feature schema')
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        'feature_schema_version': FEATURE_SCHEMA_VERSION,
+        'feature_names': list(FEATURE_NAMES),
+        'split_by_sbox': {row['sbox_id']: row['split'] for row in rows},
+        'family_by_sbox': {row['sbox_id']: row['family_id'] for row in rows},
+        'sklearn_version': sklearn.__version__,
+        'model_parameters': model.get_params(),
+        'metrics': metrics,
+    }
+    text = json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False)
+    with (directory / 'rf.joblib').open('xb') as output:
+        joblib.dump(model, output, compress=3)
+    with (directory / 'manifest.json').open('x', encoding='utf-8') as output:
+        output.write(text + '\n')
+
+
 def train_and_evaluate_rf(
     X: np.ndarray,
     y: np.ndarray,
