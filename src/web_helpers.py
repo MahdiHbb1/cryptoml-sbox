@@ -176,6 +176,30 @@ def list_available_sboxes(results_dir: str | Path = Path("results")) -> dict[str
             "constant": constant,
             "notes": notes,
         }
+
+    v2_labels = {'rf': 'RF', 'xgboost': 'XGBoost', 'mlp': 'MLP'}
+    for artifact_path in sorted((res_dir / "v2").glob("*/seed_*/final_sbox.json")):
+        try:
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Invalid v2 S-Box artifact {artifact_path}: {exc}") from exc
+        method = artifact.get("method")
+        seed = artifact.get("seed")
+        if (artifact.get("schema_version") != "2.0.0"
+                or method not in v2_labels
+                or artifact_path.parent.parent.name != method
+                or artifact_path.parent.name != f"seed_{seed}"):
+            raise ValueError(f"Incompatible v2 S-Box artifact: {artifact_path}")
+        sbox = validate_sbox(np.asarray(artifact.get("sbox"), dtype=np.uint8))
+        name = f"S-Box {v2_labels[method]} v2 (seed {seed})"
+        catalog[name] = {
+            "sbox": sbox,
+            "owner": "CryptoML-SBox v2",
+            "status": "Model ML v2",
+            "poly": None,
+            "constant": None,
+            "notes": f"Rekonstruksi v2, seed {seed}, schema {artifact['schema_version']}.",
+        }
     return catalog
 
 

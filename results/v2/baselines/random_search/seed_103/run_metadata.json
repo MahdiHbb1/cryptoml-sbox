@@ -1,0 +1,18 @@
+{
+  "schema_version": "2.0.0",
+  "method": "random_search",
+  "seed": 103,
+  "strategy": "random_search",
+  "iterations": 300,
+  "max_evaluations": 151,
+  "initial_score": 84.47058067220101,
+  "final_score": 88.86413790350392,
+  "score_delta": 4.393557231302907,
+  "full_evaluations": 151,
+  "cache_hits": 0,
+  "cache_misses": 151,
+  "feature_time_sec": 0,
+  "inference_time_sec": 0,
+  "evaluation_time_sec": 3.5052100999996583,
+  "total_time_sec": 3.5495993999998063
+}

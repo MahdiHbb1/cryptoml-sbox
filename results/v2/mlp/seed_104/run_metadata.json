@@ -1,0 +1,18 @@
+{
+  "schema_version": "2.0.0",
+  "method": "mlp",
+  "seed": 104,
+  "strategy": "top_k",
+  "iterations": 300,
+  "max_evaluations": 151,
+  "initial_score": 77.53367260332261,
+  "final_score": 86.54222543142798,
+  "score_delta": 9.008552828105366,
+  "full_evaluations": 151,
+  "cache_hits": 0,
+  "cache_misses": 151,
+  "feature_time_sec": 0.2611630999999761,
+  "inference_time_sec": 0.15728670000044076,
+  "evaluation_time_sec": 2.6295558000047095,
+  "total_time_sec": 3.1529334999995626
+}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +36,30 @@ def test_list_available_sboxes_includes_baselines_and_saved_xgb(tmp_path: Path):
         assert entry["sbox"].shape == (256,)
         assert entry["sbox"].dtype == np.uint8
         assert len(set(entry["sbox"].tolist())) == 256
+
+
+def test_list_available_sboxes_loads_versioned_v2_artifacts_and_rejects_bad_schema(tmp_path: Path):
+    sbox = np.random.default_rng(42).permutation(256).astype(np.uint8)
+    artifact_dir = tmp_path / "v2" / "xgboost" / "seed_100"
+    artifact_dir.mkdir(parents=True)
+    artifact = {
+        "schema_version": "2.0.0",
+        "method": "xgboost",
+        "seed": 100,
+        "sbox": sbox.tolist(),
+    }
+    artifact_path = artifact_dir / "final_sbox.json"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+
+    catalog = list_available_sboxes(results_dir=tmp_path)
+    loaded = catalog["S-Box XGBoost v2 (seed 100)"]
+    np.testing.assert_array_equal(loaded["sbox"], sbox)
+    assert loaded["status"] == "Model ML v2"
+
+    artifact["schema_version"] = "incompatible"
+    artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+    with pytest.raises(ValueError, match="Incompatible"):
+        list_available_sboxes(results_dir=tmp_path)
 
 
 def test_evaluate_sbox_full_and_sac_matrix_match_standard_aes():

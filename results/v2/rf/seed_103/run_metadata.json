@@ -1,0 +1,18 @@
+{
+  "schema_version": "2.0.0",
+  "method": "rf",
+  "seed": 103,
+  "strategy": "top_k",
+  "iterations": 300,
+  "max_evaluations": 151,
+  "initial_score": 84.47058067220101,
+  "final_score": 91.55181360493059,
+  "score_delta": 7.081232932729577,
+  "full_evaluations": 151,
+  "cache_hits": 0,
+  "cache_misses": 151,
+  "feature_time_sec": 0.5714353999997002,
+  "inference_time_sec": 6.449834499999724,
+  "evaluation_time_sec": 12.74556899999925,
+  "total_time_sec": 19.93164919999981
+}

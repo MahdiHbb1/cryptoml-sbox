@@ -57,14 +57,9 @@ Dokumen ini melengkapi `docs/ARCHITECTURE_CONTRACT.md` (v1) sebagai **kontrak be
 ## 3. Kontrak Dataset Permutasi & Family Split Manifest (Issue #17 — Yafi)
 
 ### 3.1 Dataset CSV (`datasets/sbox_perm_dataset.csv`)
-Dipisah tegas menjadi 3 kelompok kolom:
-1. **Metadata (BUKAN input ML):**
-   - `sample_id` (unik), `sbox_hash` (SHA-256 hex dari `sbox.tobytes()`, **wajib unik** setelah dedup global), `parent_id`, `family_id`, `seed`, `origin_type` (`"random_perm"` | `"mutated"` | `"non_ml_trajectory"`), `operator` (`"init"` | `"single_swap"` | `"multi_swap"` | `"three_cycle"` | `"segment_reversal"`), `mutation_intensity` (`int`), `iteration` (`int`).
-2. **Fitur Input ML (hanya fitur murah, dilarang memuat metrik penuh `nl`/`du`/`bic_nl`/`bic_sac`/`whs_cost` atau `composite_score`):**
-   - Kolom berawalan `f_` dengan nama stabil yang dicatat berurutan pada `feature_schema.json`.
-   - Wajib mendokumentasikan kelompok fitur untuk **ablation study** (`partial_walsh` vs `cheap_sac_fp`).
-3. **Target & Metrik Evaluasi Penuh (label ground truth):**
-   - `nl`, `sac_mean`, `sac_max_err`, `bic_nl`, `bic_sac`, `du`, `dap`, `lap`, `fixed_points`, `whs_cost`, `composite_score`.
+CSV dibentuk oleh `python -m src.train_v2_models` dari satu dataset reproducible. Metadata non-fitur: `sample_id`, `sbox_hash`, `parent_id`, `family_id`, `seed`, `operator`, `mutation_intensity`, `iteration`, `split`, dan `sbox_json`. Fitur v2 aktif adalah `hamming_mean`, `hamming_std`, `displacement_mean`, dan `displacement_std`. Evaluasi penuh menjadi label/metadata, bukan input model: `nl`, `sac_mean`, `sac_max_err`, `bic_nl`, `bic_sac`, `du`, `dap`, `lap`, `fixed_points`, `whs_cost`, dan `composite_score`.
+
+Eksperimen ablation tersimpan di `results/v2/comparative_summary.json`: fitur murah termasuk SAC/fixed-point dibanding proxy diferensial tanpa kedua fitur tersebut. Fitur model produksi mengikuti urutan `FEATURE_NAMES` di `src.dataset_builder`.
 
 ### 3.2 Split Manifest (`datasets/split_manifest.json`)
 File ini **di-commit ke Git** agar RF (#17), MLP (#16), dan XGBoost (#18) memakai pembagian data **100% identik**:
@@ -73,11 +68,13 @@ File ini **di-commit ke Git** agar RF (#17), MLP (#16), dan XGBoost (#18) memaka
   "schema_version": "2.0.0",
   "split_seed": 42,
   "ratios_target": {"train": 0.70, "val": 0.15, "test": 0.15},
-  "ratios_actual": {"train": 0.70, "val": 0.15, "test": 0.15},
+  "ratios_actual": {"train": 0.70, "val": 0.1467, "test": 0.1533},
   "dataset_path": "datasets/sbox_perm_dataset.csv",
   "dataset_sha256": "<sha256>",
+  "split_sha256": "<sha256>",
   "evaluator_version": "2.0.0",
-  "feature_version": "2.0.0",
+  "composite_score_version": "2.0.0",
+  "feature_version": "permutation-v2.1",
   "n_samples_total": 1500,
   "n_families_total": 150,
   "disjoint_family_verified": true,
@@ -93,61 +90,37 @@ File ini **di-commit ke Git** agar RF (#17), MLP (#16), dan XGBoost (#18) memaka
 
 ## 4. Kontrak Artefak Model Terlatih (`models/`)
 
-Setiap model disimpan sebagai artefak mandiri yang dapat dimuat tanpa retraining pada Phase B:
-- `models/rf_model.joblib` (Yafi #17)
-- `models/mlp_model.joblib` (Naila #16 — wajib berupa satu `Pipeline`/`TransformedTargetRegressor` dengan `StandardScaler` yang di-fit **hanya pada train**)
-- `models/xgb_model.joblib` (Mahdi #18)
-- `models/feature_schema.json` (bersama):
+Setiap model disimpan sebagai bundle mandiri yang dapat dimuat tanpa retraining pada Phase B:
+- `models/rf/rf.joblib` (Yafi #17)
+- `models/mlp/mlp.joblib` (Naila #16 — wajib berupa satu `Pipeline` dengan `StandardScaler` yang di-fit **hanya pada train**)
+- `models/xgboost/xgboost.joblib` (Mahdi #18)
+- Setiap bundle berisi `manifest.json`; schema fitur aktif `permutation-v2.1` berisi fitur permutasi:
   ```json
   {
     "schema_version": "2.0.0",
-    "feature_version": "2.0.0",
-    "feature_names": ["f_0", "..."],
-    "feature_groups": {
-      "partial_walsh": ["f_0", "..."],
-      "cheap_sac_fp": ["..."]
-    },
-    "n_features": 40
+    "feature_schema_version": "permutation-v2.1",
+    "feature_names": ["hamming_mean", "hamming_std", "displacement_mean", "displacement_std"],
+    "n_features": 4
   }
   ```
-- `models/model_metadata.json` (atau `models/{rf,xgb,mlp}_metadata.json` yang digabung):
+- Manifest model mencatat:
   ```json
   {
     "schema_version": "2.0.0",
-    "model_type": "xgboost",
-    "artifact_path": "models/xgb_model.joblib",
-    "feature_version": "2.0.0",
-    "feature_names": ["f_0", "..."],
-    "evaluator_version": "2.0.0",
-    "composite_score_version": "1.0.0",
-    "dataset_fingerprint": "<dataset_sha256>",
-    "split_fingerprint": "<split_sha256>",
-    "library_versions": {
-      "python": "3.12.3",
-      "numpy": "1.26.1",
-      "scikit-learn": "1.3.2",
-      "xgboost": "3.1.1",
-      "joblib": "1.3.2"
-    },
-    "hyperparameters": {},
-    "validation_metrics": {
-      "mae": 0.0, "mse": 0.0, "rmse": 0.0, "r2": 0.0,
-      "spearman_global": 0.0, "spearman_per_pool_mean": 0.0,
-      "topk_hit_rate": 0.0, "topk_regret": 0.0
-    },
-    "test_metrics": {
-      "mae": 0.0, "mse": 0.0, "rmse": 0.0, "r2": 0.0,
-      "spearman_global": 0.0, "spearman_per_pool_mean": 0.0,
-      "topk_hit_rate": 0.0, "topk_regret": 0.0
-    },
-    "ablation_metrics": {},
-    "timing_sec": {
-      "train_sec": 0.0,
-      "predict_1000_sec": 0.0
-    }
+    "model_kind": "xgboost",
+    "feature_schema_version": "permutation-v2.1",
+    "feature_names": ["hamming_mean", "hamming_std", "displacement_mean", "displacement_std"],
+    "n_features": 4,
+    "dataset_sha256": "<dataset fingerprint>",
+    "split_sha256": "<family split fingerprint>",
+    "model_parameters": {},
+    "metrics": {},
+    "python_version": "...",
+    "sklearn_version": "...",
+    "xgboost_version": "..."
   }
   ```
-- **Aturan Loader Ketat:** Saat engine rekonstruksi atau Streamlit memuat model, loader wajib memverifikasi kecocokan `schema_version`, `feature_version`, `feature_names`, dan jumlah fitur (`n_features_in_`). Jika tidak cocok atau file tidak ada, tampilkan/lempar error eksplisit — **dilarang diam-diam melanjutkan atau membuat prediksi palsu**.
+- **Aturan Loader Ketat:** Saat engine rekonstruksi atau Streamlit memuat model, loader memverifikasi `schema_version`, `feature_schema_version`, `feature_names`, `n_features`, dan jumlah fitur model (`n_features_in_`). Jika tidak cocok atau file tidak ada, tampilkan/lempar error eksplisit — **dilarang diam-diam melanjutkan atau membuat prediksi palsu**.
 
 ---
 

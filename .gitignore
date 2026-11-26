@@ -20,6 +20,7 @@ datasets/*.csv
 *.pkl
 *.joblib
 !models/*.joblib
+!models/**/*.joblib
 *.h5
 
 # OS & Editors

@@ -1,10 +1,4 @@
-"""Aplikasi Web Interaktif CryptoML-SBox (Streamlit).
-
-Terdiri dari 3 halaman utama:
-1. Ringkasan Proyek      — Penjelasan lugas agar siapa pun langsung memahami sistem & hasil.
-2. Diagram & Arsitektur  — Diagram node interaktif Archify (alur kerja, pengembangan, hasil).
-3. Simulasi Langsung     — Inspeksi/generator S-Box, enkripsi citra Mandrill/upload, & teks.
-"""
+"""Six-page Streamlit dashboard for legacy results and the v2 pipeline."""
 
 from __future__ import annotations
 
@@ -44,10 +38,15 @@ ARCHIFY_HTML_PATH = REPO_ROOT / "assets" / "cryptoml_sbox_archify.html"
 XGB_METRICS_PATH = RESULTS_DIR / "xgb_metrics.json"
 
 PAGES = [
-    "Ringkasan Proyek",
-    "Diagram Alur & Arsitektur",
-    "Simulasi Langsung",
+    "Overview",
+    "Dataset/Training",
+    "Reconstruction",
+    "Crypto Evaluation",
+    "Image Encryption",
+    "Comparative Analysis",
 ]
+V2_MODELS_DIR = REPO_ROOT / "models"
+V2_RESULTS_DIR = RESULTS_DIR / "v2"
 
 st.set_page_config(
     page_title="CryptoML-SBox — Konstruksi S-Box AES Berbasis Machine Learning",
@@ -632,7 +631,15 @@ def load_xgb_summary() -> dict:
 
 @st.cache_data(show_spinner=False)
 def load_mandrill_benchmark() -> tuple[dict, pd.DataFrame]:
-    return load_mandrill_benchmark_table(MANDRILL_METRICS_PATH)
+    legacy_report, legacy_rows = load_mandrill_benchmark_table(MANDRILL_METRICS_PATH)
+    v2_path = V2_RESULTS_DIR / "mandrill_v2_metrics.json"
+    if not v2_path.is_file():
+        return legacy_report, legacy_rows
+    v2_report, v2_rows = load_mandrill_benchmark_table(v2_path)
+    return (
+        {"legacy": legacy_report, "v2": v2_report},
+        pd.concat([legacy_rows, v2_rows], ignore_index=True),
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -673,6 +680,28 @@ def load_archify_html() -> str:
     if ARCHIFY_HTML_PATH.exists():
         return ARCHIFY_HTML_PATH.read_text(encoding="utf-8")
     return ""
+
+
+@st.cache_resource(show_spinner=False)
+def load_v2_xgboost_model(model_dir: str, manifest_mtime: int, model_mtime: int):
+    from src.ml_reconstruction import load_trusted_model
+
+    return load_trusted_model(model_dir)
+
+
+@st.cache_data(show_spinner=False)
+def cached_v2_reconstruction(model_dir: str, seed: int, manifest_mtime: int, model_mtime: int):
+    from src.ml_reconstruction import reconstruct
+    from src.train_rf_v2 import evaluate
+
+    model, _ = load_v2_xgboost_model(model_dir, manifest_mtime, model_mtime)
+    return reconstruct(
+        lambda box: evaluate(box)["composite_score"],
+        model.predict,
+        seed=seed,
+        mode="fast",
+        max_evaluations=46,
+    )
 
 
 def _fig_to_clean_style(ax):
@@ -805,33 +834,51 @@ def _set_active_page(page_name: str) -> None:
     st.session_state["active_page"] = page_name
 
 
+def _default_sbox_index(names: list[str]) -> int:
+    for candidate in ("S-Box XGBoost v2 (seed 100)", "S-Box XGBoost (Mahdi)"):
+        if candidate in names:
+            return names.index(candidate)
+    return 0
+
+
 def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
     mandrill_raw, df_mandrill = load_mandrill_benchmark()
-    xgb_entry = catalog.get("S-Box XGBoost (Mahdi)") or next(iter(catalog.values()))
-    xgb_poly = xgb_entry.get("poly") or "0x1E7"
-    xgb_const = xgb_entry.get("constant") or "0x07"
+    xgb_name = next(
+        (name for name in (
+            "S-Box XGBoost v2 (seed 100)",
+            "S-Box XGBoost (Mahdi)",
+            "AES Standar (FIPS-197)",
+        ) if name in catalog),
+        "AES Standar (FIPS-197)",
+    )
+    xgb_entry = catalog[xgb_name]
+    xgb_poly = xgb_entry.get("poly")
+    xgb_const = xgb_entry.get("constant")
     xgb_m = cached_evaluate_sbox(xgb_entry["sbox"].tobytes())
+    aes_m = cached_evaluate_sbox(catalog["AES Standar (FIPS-197)"]["sbox"].tobytes())
     preview_plain, preview_cipher = build_hero_mandrill_preview(xgb_entry["sbox"].tobytes())
 
-    # Ambil KPI Mandrill secara dinamis dari results/mandrill_metrics.json agar sinkron 100% dengan laporan
-    hero_entropy = "7.99977"
-    hero_entropy_note = "Naik dari 7.76244 menuju ideal 8.000 bit (512×512 CBC2)"
-    hero_npcr = "99.61%"
-    hero_npcr_note = "UACI 33.45% · 10/10 Konfigurasi Lossless"
+    hero_entropy = "Belum tersedia"
+    hero_entropy_note = "Belum ada hasil Mandrill yang dimuat"
+    hero_npcr = "Belum tersedia"
+    hero_npcr_note = "Belum ada hasil Mandrill yang dimuat"
     if not df_mandrill.empty:
         rgb_xgb = df_mandrill[
-            (df_mandrill["S-Box"] == "S-Box XGBoost") & (df_mandrill["Mode"] == "RGB")
+            (df_mandrill["S-Box"] == xgb_name) & (df_mandrill["Mode"] == "RGB")
         ]
+        if rgb_xgb.empty:
+            rgb_xgb = df_mandrill[
+                (df_mandrill["S-Box"] == "S-Box XGBoost")
+                & (df_mandrill["Mode"] == "RGB")
+            ]
         if not rgb_xgb.empty:
             r = rgb_xgb.iloc[0]
             hero_entropy = f"{r['Entropy Cipher']:.5f}"
-            hero_entropy_note = (
-                f"Naik dari {r['Entropy Plain']:.5f} menuju ideal 8.000 bit (p = {r['p-value']:.4f})"
-            )
+            hero_entropy_note = f"Plain {r['Entropy Plain']:.5f} · χ² p={r['p-value']:.4f}"
             hero_npcr = f"{r['NPCR (%)']:.2f}%"
             lossless_cnt = int((df_mandrill["Lossless"] == "Ya").sum())
             hero_npcr_note = (
-                f"UACI {r['UACI (%)']:.2f}% · {lossless_cnt}/{len(df_mandrill)} Uji Mandrill Lossless"
+                f"UACI {r['UACI (%)']:.2f}% · {lossless_cnt}/{len(df_mandrill)} Mandrill runs lossless"
             )
 
     lead_left, lead_right = st.columns([1.15, 1.0], gap="large")
@@ -842,23 +889,23 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
             'Di dalam algoritma <strong>AES-128</strong>, <strong>S-Box</strong> berperan sebagai tabel pengacak '
             '256 nilai yang menjadi inti keamanan enkripsi. Alih-alih menguji kandidat secara manual yang memakan waktu, '
             'sistem ini melatih <strong>Random Forest</strong>, <strong>XGBoost</strong>, dan <strong>MLP</strong> '
-            'pada dataset bersama untuk menyaring ribuan kandidat S-Box secara cepat, lalu membuktikan ketahanannya '
-            'langsung pada enkripsi citra digital <strong>Mandrill</strong> (RGB dan Grayscale).'
+            'pada dataset bersama untuk mengarahkan rekonstruksi S-Box, lalu membandingkan metrik empirisnya '
+            'pada citra digital <strong>Mandrill</strong> (RGB dan Grayscale). Metrik ini bukan bukti keamanan.'
             '</p>',
             unsafe_allow_html=True,
         )
         btn_col1, btn_col2 = st.columns([1.0, 1.0], gap="small")
         with btn_col1:
             st.button(
-                "Coba Simulasi Langsung",
+                "Coba Enkripsi Citra",
                 type="primary",
                 width="stretch",
                 on_click=_set_active_page,
-                args=(PAGES[2],),
+                args=(PAGES[4],),
             )
         with btn_col2:
             st.button(
-                "Lihat Diagram Arsitektur",
+                "Dataset & Training",
                 width="stretch",
                 on_click=_set_active_page,
                 args=(PAGES[1],),
@@ -872,13 +919,15 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
         with img_c2:
             st.image(
                 preview_cipher,
-                caption="Terenkripsi AES-CBC2 + S-Box XGBoost",
+                caption=f"Terenkripsi CBC2 + {xgb_entry['owner']}",
                 width="stretch",
             )
         st.markdown(
             '<div style="font-size:0.88rem; color:#465664; margin-top:0.35rem; line-height:1.55;">'
             'Pratinjau di atas dienkripsi secara langsung oleh mesin AES-128 (<code class="mono-val">aes_cipher_runner.py</code>) '
-            f'menggunakan S-Box terpilih XGBoost (<code class="mono-val">poly={xgb_poly}, C={xgb_const}, Fixed Points={xgb_m["fixed_points"]}</code>). '
+            f'menggunakan {xgb_entry["owner"]} '
+            f'(<code class="mono-val">schema={xgb_entry["status"]}, poly={xgb_poly or "n/a"}, '
+            f'C={xgb_const or "n/a"}, Fixed Points={xgb_m["fixed_points"]}</code>). '
             'Proses dekripsi mengembalikan seluruh piksel secara identik (100% lossless).'
             '</div></div>',
             unsafe_allow_html=True,
@@ -886,12 +935,12 @@ def render_page_overview(catalog: dict[str, dict], df_metrics: pd.DataFrame):
 
     st.markdown(
         '<div class="stat-strip">'
-        '<div class="stat-item"><div class="stat-item-label">Nonlinearity (NL)</div>'
+        '<div class="stat-item"><div class="stat-item-label">Nonlinearity (NL, empiris)</div>'
         f'<div class="stat-item-value">{xgb_m["nl"]}</div>'
-        '<div class="stat-item-note">Batas maksimal keluarga AES (DU = 4, LAP = 0.0625)</div></div>'
+        f'<div class="stat-item-note">DU {xgb_m["du"]} · LAP {xgb_m["lap"]:.4f} · AES NL {aes_m["nl"]}</div></div>'
         '<div class="stat-item"><div class="stat-item-label">SAC Mean &amp; Max Error</div>'
         f'<div class="stat-item-value">{xgb_m["sac_mean"]:.5f}</div>'
-        f'<div class="stat-item-note">Max Err {xgb_m["sac_max_err"]:.5f} (25% lebih ketat dari AES &amp; K44)</div></div>'
+        f'<div class="stat-item-note">Max Err {xgb_m["sac_max_err"]:.5f} · AES {aes_m["sac_mean"]:.5f}</div></div>'
         '<div class="stat-item"><div class="stat-item-label">Entropi Citra Mandrill</div>'
         f'<div class="stat-item-value">{hero_entropy}</div>'
         f'<div class="stat-item-note">{hero_entropy_note}</div></div>'
@@ -1160,7 +1209,7 @@ def render_sim_sbox_tab(catalog: dict[str, dict]):
 
     if source_mode == "Katalog Proyek (AES, K44, ML)":
         names = list(catalog.keys())
-        default_idx = names.index("S-Box XGBoost (Mahdi)") if "S-Box XGBoost (Mahdi)" in names else 0
+        default_idx = _default_sbox_index(names)
         selected_name = st.selectbox("Pilih S-Box untuk diinspeksi", names, index=default_idx)
         entry = catalog[selected_name]
         selected_sbox = entry["sbox"]
@@ -1302,7 +1351,7 @@ def render_sim_image_tab(catalog: dict[str, dict]):
 
     c1, c2, c3, c4 = st.columns([1.35, 1.0, 1.05, 1.1])
     names = list(catalog.keys())
-    default_idx = names.index("S-Box XGBoost (Mahdi)") if "S-Box XGBoost (Mahdi)" in names else 0
+    default_idx = _default_sbox_index(names)
     with c1:
         sbox_name = st.selectbox("Pilih S-Box", names, index=default_idx, key="img_sbox_name")
     with c2:
@@ -1456,7 +1505,7 @@ def render_sim_text_tab(catalog: dict[str, dict]):
     )
 
     names = list(catalog.keys())
-    default_idx = names.index("S-Box XGBoost (Mahdi)") if "S-Box XGBoost (Mahdi)" in names else 0
+    default_idx = _default_sbox_index(names)
 
     t1, t2, t3, t4 = st.columns([1.4, 0.9, 1.1, 1.1])
     with t1:
@@ -1553,13 +1602,210 @@ def render_page_simulation(catalog: dict[str, dict]):
         render_sim_text_tab(catalog)
 
 
+def render_page_dataset():
+    st.markdown('<h1 class="lead-title">Dataset &amp; Training</h1>', unsafe_allow_html=True)
+    split_path = REPO_ROOT / "datasets" / "split_manifest.json"
+    if split_path.is_file():
+        try:
+            split_manifest = json.loads(split_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            st.error(f"Split manifest tidak dapat dibaca: {exc}")
+        else:
+            st.subheader("Dataset v2")
+            st.json(split_manifest)
+    else:
+        st.info("Artefak belum tersedia: `datasets/split_manifest.json` belum dibuat.")
+
+    st.subheader("Model tersimpan")
+    model_dirs = {
+        "Random Forest": V2_MODELS_DIR / "rf",
+        "XGBoost": V2_MODELS_DIR / "xgboost",
+        "MLP": V2_MODELS_DIR / "mlp",
+    }
+    rows = []
+    for name, directory in model_dirs.items():
+        manifest_path = directory / "manifest.json"
+        if not manifest_path.is_file():
+            rows.append({
+                "Model": name, "Status": "Artefak belum tersedia", "Test MAE": None,
+                "Test RMSE": None, "Test R²": None, "Spearman": None,
+                "Top-3 hit": None, "Train (s)": None, "Inference (s)": None,
+            })
+            continue
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            rows.append({
+                "Model": name, "Status": f"Manifest tidak valid: {exc}", "Test MAE": None,
+                "Test RMSE": None, "Test R²": None, "Spearman": None,
+                "Top-3 hit": None, "Train (s)": None, "Inference (s)": None,
+            })
+            continue
+        metrics = manifest.get("metrics", {})
+        rows.append({
+            "Model": name,
+            "Status": "Tersedia",
+            "Test MAE": metrics.get("mae"),
+            "Test RMSE": metrics.get("rmse"),
+            "Test R²": metrics.get("r2"),
+            "Spearman": metrics.get("spearman"),
+            "Top-3 hit": metrics.get("topk_hit_rate"),
+            "Train (s)": metrics.get("train_time_sec"),
+            "Inference (s)": metrics.get("inference_time_sec"),
+        })
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    st.caption("Model dilatih offline; dashboard tidak melakukan training saat dimuat.")
+
+
+def render_page_reconstruction():
+    st.markdown('<h1 class="lead-title">ML-Guided Reconstruction</h1>', unsafe_allow_html=True)
+    model_dir = V2_MODELS_DIR / "xgboost"
+    manifest_path = model_dir / "manifest.json"
+    model_path = model_dir / "xgboost.joblib"
+    if not manifest_path.is_file() or not model_path.is_file():
+        st.info("Artefak XGBoost v2 belum tersedia atau belum lengkap; live reconstruction dinonaktifkan.")
+        return
+
+    manifest_mtime = manifest_path.stat().st_mtime_ns
+    model_mtime = model_path.stat().st_mtime_ns
+    seed = int(st.number_input("Seed", min_value=0, max_value=2**31 - 1, value=42, step=1))
+    run_clicked = st.button("Jalankan rekonstruksi ringan", type="primary")
+    cache_key = (str(model_dir), seed, manifest_mtime, model_mtime)
+    if run_clicked:
+        try:
+            result = cached_v2_reconstruction(*cache_key)
+        except (FileNotFoundError, ValueError, OSError, json.JSONDecodeError) as exc:
+            st.error(f"Model v2 tidak dapat digunakan: {exc}")
+        else:
+            st.session_state["v2_reconstruction_key"] = cache_key
+            st.session_state["v2_reconstruction_result"] = result
+
+    result = st.session_state.get("v2_reconstruction_result")
+    if st.session_state.get("v2_reconstruction_key") != cache_key or result is None:
+        st.caption("Rekonstruksi hanya berjalan setelah tombol ditekan dan memakai model tersimpan yang tervalidasi.")
+        return
+
+    score_col, eval_col, restart_col = st.columns(3)
+    score_col.metric("Skor awal", f"{result['initial_score']:.3f}")
+    eval_col.metric("Evaluasi penuh", result["full_evaluations"])
+    restart_col.metric("Restart", result["restarts"])
+    st.caption("Skor komposit adalah proxy eksperimen, bukan bukti keamanan kriptografi.")
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**S-Box awal**")
+        st.dataframe(format_sbox_grid(result["initial_sbox"]), width="stretch")
+    with right:
+        st.markdown("**S-Box terbaik**")
+        st.metric("Skor terbaik", f"{result['best_score']:.3f}")
+        st.dataframe(format_sbox_grid(result["sbox"]), width="stretch")
+    history = pd.DataFrame(result["history"])
+    if not history.empty:
+        st.line_chart(history.set_index("iteration")[["best_score"]])
+        st.dataframe(history, hide_index=True, width="stretch")
+
+
+def render_page_crypto_evaluation(df_metrics: pd.DataFrame):
+    st.markdown('<h1 class="lead-title">Cryptographic Evaluation</h1>', unsafe_allow_html=True)
+    st.warning("Metrik empiris dan Composite Score bukan bukti keamanan kriptografi formal.")
+    st.subheader("Hasil legacy v1")
+    if df_metrics.empty:
+        st.info("Hasil legacy tidak tersedia.")
+    else:
+        st.dataframe(df_metrics, hide_index=True, width="stretch")
+
+    metric_files = sorted(V2_RESULTS_DIR.glob("*/seed_*/cryptographic_metrics.json"))
+    if not metric_files:
+        st.info("Evaluasi kriptografi v2 belum tersedia; hasil legacy tidak dicampur dengan v2.")
+        return
+    st.subheader("Hasil v2")
+    for path in metric_files:
+        with st.expander(f"{path.parent.parent.name} · {path.parent.name}"):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                st.error(f"{path.relative_to(REPO_ROOT)} tidak dapat dibaca: {exc}")
+            else:
+                st.json(payload)
+
+
+def render_page_image_encryption(catalog: dict[str, dict]):
+    st.markdown('<h1 class="lead-title">Image Encryption (Mandrill)</h1>', unsafe_allow_html=True)
+    st.caption("Enkripsi memakai artefak S-Box yang tersedia; metode non-standar diberi label modifikasi.")
+    tab_sbox, tab_image, tab_text = st.tabs(
+        ["Inspeksi S-Box (Legacy)", "Enkripsi Citra", "Enkripsi Teks"]
+    )
+    with tab_sbox:
+        render_sim_sbox_tab(catalog)
+    with tab_image:
+        render_sim_image_tab(catalog)
+    with tab_text:
+        render_sim_text_tab(catalog)
+
+
+def render_page_comparative_analysis():
+    st.markdown('<h1 class="lead-title">Comparative Analysis</h1>', unsafe_allow_html=True)
+    st.caption("Perbandingan berpasangan hanya ditampilkan dari hasil eksperimen tersimpan.")
+    summary_path = V2_RESULTS_DIR / "comparative_summary.json"
+    if not summary_path.is_file():
+        st.info("Hasil eksperimen v2 belum tersedia; tidak ada angka contoh yang ditampilkan.")
+        return
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        st.error(f"Ringkasan komparatif tidak dapat dibaca: {exc}")
+        return
+    paired_summary = summary.get("paired_summary", {})
+    if paired_summary:
+        st.subheader("Hasil rata-rata per metode")
+        st.dataframe(
+            pd.DataFrame.from_dict(paired_summary, orient="index")
+            .rename_axis("Metode")
+            .reset_index(),
+            hide_index=True,
+            width="stretch",
+        )
+    differences = summary.get("paired_differences_vs_random_top_k", {})
+    if differences:
+        st.subheader("Selisih berpasangan vs Top-K acak")
+        st.dataframe(
+            pd.DataFrame.from_dict(differences, orient="index")
+            .rename_axis("Metode")
+            .reset_index(),
+            hide_index=True,
+            width="stretch",
+        )
+    runs = summary.get("paired", [])
+    if runs:
+        st.subheader("Hasil per seed")
+        st.dataframe(
+            pd.DataFrame([
+                {key: run[key] for key in (
+                    "seed", "method", "initial_score", "best_score", "score_delta",
+                    "full_evaluations", "feature_time_sec", "inference_time_sec",
+                    "evaluation_time_sec", "total_time_sec")}
+                for run in runs
+            ]),
+            hide_index=True,
+            width="stretch",
+        )
+    ablation = summary.get("ablation", {})
+    if ablation:
+        st.subheader("Ablation fitur")
+        st.dataframe(pd.DataFrame.from_dict(ablation, orient="index").rename_axis("Model/fitur").reset_index(),
+                     hide_index=True, width="stretch")
+
+
 def main():
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
     if "active_page" not in st.session_state:
         st.session_state["active_page"] = PAGES[0]
 
-    catalog, df_metrics = load_catalog_and_metrics()
+    try:
+        catalog, df_metrics = load_catalog_and_metrics()
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        st.error(f"Katalog S-Box tidak dapat dimuat: {exc}")
+        st.stop()
 
     # Compact sidebar with live repository status
     with st.sidebar:
@@ -1574,7 +1820,7 @@ def main():
         )
         st.markdown("[Buka Repositori GitHub](https://github.com/MahdiHbb1/cryptoml-sbox)")
 
-    # Clean top brand bar + segmented 3-page switcher
+    # Clean top brand bar + segmented six-page switcher
     st.markdown(
         '<div class="brand-bar">'
         f'<div class="brand-mark">{SVG_BRAND}'
@@ -1598,9 +1844,15 @@ def main():
     if active_page == PAGES[0]:
         render_page_overview(catalog, df_metrics)
     elif active_page == PAGES[1]:
-        render_page_architecture()
+        render_page_dataset()
+    elif active_page == PAGES[2]:
+        render_page_reconstruction()
+    elif active_page == PAGES[3]:
+        render_page_crypto_evaluation(df_metrics)
+    elif active_page == PAGES[4]:
+        render_page_image_encryption(catalog)
     else:
-        render_page_simulation(catalog)
+        render_page_comparative_analysis()
 
 
 if __name__ == "__main__":

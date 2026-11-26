@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from hashlib import sha256
 from pathlib import Path
 from typing import Callable
@@ -10,16 +11,9 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
-from src.aes_affine_generator import generate_aes_affine_candidates
-from src.aes_cipher_runner import validate_sbox
-from src.train_xgboost import (
-    compute_composite_score,
-    evaluate_sbox_default,
-    extract_fast_features_default,
-)
-
-
+from src.composite_score import COMPOSITE_SCORE_VERSION, compute_composite_score
 from src.permutation_v2 import initialize, mutate
+from src.sbox_metrics import EVALUATOR_VERSION
 
 
 FEATURE_SCHEMA_VERSION = 'permutation-v2.1'
@@ -67,7 +61,7 @@ def build_dataset(n_families, family_size, seed, evaluate):
             score = float(metrics['composite_score'])
             if not np.isfinite(score):
                 raise ValueError('Composite Score must be finite')
-            rows.append({'sbox_id': box_id, 'parent_id': parent_id, 'family_id': family,
+            rows.append({'sample_id': box_id, 'sbox_id': box_id, 'parent_id': parent_id, 'family_id': family,
                          'seed': family_seed, 'iteration': iteration, 'operator': operator,
                          'intensity': intensity, 'split': splits[family], 'sbox': box.tolist(),
                          'features': features, 'metrics': metrics, 'composite_score': score})
@@ -75,8 +69,97 @@ def build_dataset(n_families, family_size, seed, evaluate):
     return rows
 
 
+def write_dataset_bundle(rows, dataset_path='datasets/sbox_perm_dataset.csv',
+                         manifest_path='datasets/split_manifest.json', seed=42):
+    """Write reproducible dataset CSV and a verified, whole-family split manifest."""
+    from collections import Counter
+
+    if not rows:
+        raise ValueError('Dataset must contain at least one row')
+    families, hashes = {}, set()
+    groups = {'train': [], 'validation': [], 'test': []}
+    for row in rows:
+        split = row['split']
+        if split not in groups or families.setdefault(row['family_id'], split) != split:
+            raise ValueError('Invalid split or family leakage')
+        sbox_id = sha256(np.asarray(row['sbox'], dtype=np.uint8).tobytes()).hexdigest()
+        if sbox_id != row['sbox_id'] or sbox_id in hashes:
+            raise ValueError('Duplicate or mismatched S-Box fingerprint')
+        hashes.add(sbox_id)
+        groups[split].append(row['sbox_id'])
+    if any(not groups[name] for name in groups):
+        raise ValueError('Train, validation, and test splits must all be non-empty')
+
+    counts = Counter(row['split'] for row in rows)
+    split_by_sbox = {
+        row['sbox_id']: (row['family_id'], row['split'])
+        for row in rows
+    }
+    split_hash = sha256(json.dumps(sorted(
+        (sbox_id, family_id, split)
+        for sbox_id, (family_id, split) in split_by_sbox.items()
+    )).encode()).hexdigest()
+    dataset_hash = sha256(json.dumps(
+        sorted(rows, key=lambda row: row['sbox_id']),
+        sort_keys=True,
+        allow_nan=False,
+    ).encode()).hexdigest()
+    n = len(rows)
+    manifest = {
+        'schema_version': '2.0.0',
+        'split_seed': int(seed),
+        'ratios_target': {'train': 0.70, 'val': 0.15, 'test': 0.15},
+        'ratios_actual': {
+            'train': counts['train'] / n,
+            'val': counts['validation'] / n,
+            'test': counts['test'] / n,
+        },
+        'dataset_path': str(dataset_path).replace('\\', '/'),
+        'dataset_sha256': dataset_hash,
+        'split_sha256': split_hash,
+        'evaluator_version': EVALUATOR_VERSION,
+        'composite_score_version': COMPOSITE_SCORE_VERSION,
+        'feature_version': FEATURE_SCHEMA_VERSION,
+        'n_samples_total': n,
+        'n_families_total': len(families),
+        'disjoint_family_verified': len(families) == len(set(families)),
+        'disjoint_hash_verified': len(hashes) == n,
+        'train_ids': sorted(groups['train']),
+        'val_ids': sorted(groups['validation']),
+        'test_ids': sorted(groups['test']),
+    }
+    dataset_file, manifest_file = Path(dataset_path), Path(manifest_path)
+    dataset_file.parent.mkdir(parents=True, exist_ok=True)
+    manifest_file.parent.mkdir(parents=True, exist_ok=True)
+
+    records = []
+    for row in rows:
+        records.append({
+            'sample_id': row['sample_id'],
+            'sbox_hash': row['sbox_id'],
+            'parent_id': row['parent_id'],
+            'family_id': row['family_id'],
+            'seed': row['seed'],
+            'operator': row['operator'],
+            'mutation_intensity': row['intensity'],
+            'iteration': row['iteration'],
+            'split': row['split'],
+            **row['features'],
+            **row['metrics'],
+            'sbox_json': json.dumps(row['sbox'], separators=(',', ':')),
+        })
+    pd.DataFrame(records).to_csv(dataset_file, index=False)
+    manifest_file.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False) + '\n',
+        encoding='utf-8',
+    )
+    return manifest
+
+
 def extract_fast_features(sbox: np.ndarray) -> np.ndarray:
     """Menghasilkan 40 fitur numerik cepat yang dipakai seluruh model ML."""
+    from src.train_xgboost import extract_fast_features_default
+
     return extract_fast_features_default(sbox)
 
 
@@ -99,6 +182,8 @@ def generate_chaotic_swap_candidates(
     skip: int = 80,
 ) -> list[dict]:
     """Membangkitkan ``n`` S-Box unik dari logistic map lalu pertukaran elemen."""
+    from src.aes_cipher_runner import validate_sbox
+
     if n < 0:
         raise ValueError("Jumlah kandidat tidak boleh negatif.")
     if not 0 <= min_swaps <= max_swaps:
@@ -146,6 +231,8 @@ def resolve_evaluator() -> Callable[[np.ndarray], dict]:
         from src.sbox_metrics import evaluate_sbox
     except ImportError:
         # ponytail: fallback sementara setara kontrak; otomatis naik ke evaluator Naila setelah modul di-merge.
+        from src.train_xgboost import evaluate_sbox_default
+
         return evaluate_sbox_default
     return evaluate_sbox
 
@@ -158,6 +245,9 @@ def build_sbox_dataset(
     evaluate_fn: Callable[[np.ndarray], dict] | None = None,
 ) -> pd.DataFrame:
     """Membentuk dataset gabungan sesuai ``ARCHITECTURE_CONTRACT.md``."""
+    from src.aes_affine_generator import generate_aes_affine_candidates
+    from src.aes_cipher_runner import validate_sbox
+
     if n_chaotic < 0 or n_aes < 0 or n_chaotic + n_aes == 0:
         raise ValueError("Jumlah kandidat harus positif dan tidak boleh negatif.")
 

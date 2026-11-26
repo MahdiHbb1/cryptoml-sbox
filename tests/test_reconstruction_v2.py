@@ -71,3 +71,26 @@ def test_restart_keeps_global_best_and_budget():
     assert result['restarts'] == 1
     assert result['full_evaluations'] == 5
     np.testing.assert_array_equal(result['sbox'], result['initial_sbox'])
+
+
+def test_reconstruction_history_tracks_per_iteration_costs():
+    from src.ml_reconstruction import reconstruct
+
+    result = reconstruct(
+        lambda box: float(box[0]),
+        lambda frame: np.arange(len(frame), dtype=float),
+        seed=3,
+        iterations=2,
+        pool_size=4,
+        top_k=1,
+        max_evaluations=3,
+    )
+    row = result['history'][0]
+    assert row['operator_selected'] == 'single_swap'
+    assert row['n_candidates_generated'] >= row['n_candidates_unique'] == 4
+    assert row['full_evals_used'] == 1
+    assert row['full_evals_cumulative'] == 2
+    assert row['feature_time_sec'] >= 0
+    assert row['inference_time_sec'] >= 0
+    assert row['eval_time_sec'] >= 0
+    assert row['iter_total_time_sec'] >= 0

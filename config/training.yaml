@@ -39,15 +39,15 @@ models:
   output_dir: "models"
   compression_level: 3
   random_forest:
-    artifact: "models/rf_model.joblib"
-    metadata: "models/rf_metadata.json"
+    artifact: "models/rf/rf.joblib"
+    metadata: "models/rf/manifest.json"
     param_grid:
       n_estimators: [200, 300, 500]
       max_depth: [null, 12, 20]
       min_samples_leaf: [1, 2, 4]
   xgboost:
-    artifact: "models/xgb_model.joblib"
-    metadata: "models/xgb_metadata.json"
+    artifact: "models/xgboost/xgboost.joblib"
+    metadata: "models/xgboost/manifest.json"
     param_grid:
       n_estimators: [150, 300, 500]
       max_depth: [3, 5, 7]
@@ -56,8 +56,8 @@ models:
       colsample_bytree: [0.8, 1.0]
       reg_lambda: [1.0, 5.0]
   mlp:
-    artifact: "models/mlp_model.joblib"
-    metadata: "models/mlp_metadata.json"
+    artifact: "models/mlp/mlp.joblib"
+    metadata: "models/mlp/manifest.json"
     scale_features_train_only: true
     scale_target_train_only: true
     param_grid:
