@@ -61,16 +61,16 @@ streamlit run app.py
 ```
 
 Aplikasi web memiliki 6 halaman:
-1. **Overview** — Ringkasan proyek, pratinjau Mandrill, dan hasil legacy yang tersedia.
-2. **Dataset/Training** — Manifest split dan status model v2 tersimpan; tidak melatih model saat aplikasi dimuat.
-3. **Reconstruction** — Rekonstruksi ringan setelah diminta, hanya jika bundle XGBoost tersimpan lolos validasi schema.
-4. **Crypto Evaluation** — Hasil evaluasi legacy dan artefak v2 yang tersedia, dengan pemisahan eksplisit.
-5. **Image Encryption** — Evaluasi citra Mandrill serta tab inspeksi S-Box legacy dan simulasi teks.
-6. **Comparative Analysis** — Ringkasan eksperimen berpasangan v2 jika artefaknya tersedia.
+1. **Overview** — Ringkasan pipeline v2 bebas polinomial, pratinjau enkripsi Mandrill v2, perbandingan 5 S-Box fokus (AES, K44, RF/XGBoost/MLP v2 seed 100), kontribusi tim, dan akses Diagram Archify.
+2. **Dataset/Training** — Ringkasan manifest split keluarga 70/15/15 (SHA-256 fingerprint + verifikasi anti-leakage), metrik hold-out 3 model tersimpan, dan *feature importance*; tidak melatih model saat aplikasi dimuat.
+3. **Reconstruction** — Kurva konvergensi pra-hitung multi-seed dan simulasi rekonstruksi ringan *opt-in* ter-cache untuk memilih model **XGBoost**, **Random Forest**, atau **MLP** tersimpan yang lolos validasi schema.
+4. **Crypto Evaluation** — Pemisahan tegas antara tabel/grafik **Hasil v2 Polynomial-Free**, **Arsip Legacy v1 (GF(2⁸))**, dan inspeksi detail grid 16×16 + heatmap SAC 8×8.
+5. **Image Encryption** — Tabel & grafik Korelasi Piksel benchmark **Mandrill v2** (10 run RGB & Grayscale berlabel *AES-128 Modifikasi*), simulasi interaktif citra (Mandrill/upload), dan simulasi teks AES-128.
+6. **Comparative Analysis** — Grafik & tabel perbandingan berpasangan 5 seed (CI 95% vs Random Top-K), studi ablasi 3-arah (`perm4` vs `proxy` vs `cheap` SAC 8×8 + FP), serta rincian waktu komputasi per seed.
 
-Arsitektur Archify tetap tersedia pada `assets/cryptoml_sbox_archify.html`. Halaman menampilkan status artefak eksplisit, bukan angka contoh saat hasil v2 belum tersedia.
+Arsitektur Archify tetap tersedia pada `assets/cryptoml_sbox_archify.html` dan dapat dibuka/diunduh dari halaman *Overview*. Halaman menampilkan status artefak eksplisit, bukan angka contoh saat hasil v2 belum tersedia.
 
-### Reproduksi Pipeline v2 (Issue #18)
+### Reproduksi Pipeline v2 (Issue #16, #17, #18)
 
 ```bash
 python -m src.train_v2_models --output-dir models/reproduction
@@ -79,7 +79,7 @@ python -m src.run_v2_benchmark --seed 100
 python -m pytest -q
 ```
 
-Pipeline membangun dataset 150 keluarga dengan split keluarga 70/15/15, lalu melatih RF, XGBoost (tuning pada validation), dan MLP pada dataset/fingerprint yang sama. Eksperimen default menjalankan lima seed dengan batas 151 evaluasi penuh per run; evaluasi Mandrill memilih seed 100 yang telah ditetapkan, membandingkan AES/K44 dan tiga model v2 pada RGB dan grayscale, serta memverifikasi dekripsi lossless. Semua metrik empiris bukan bukti keamanan kriptografi.
+Pipeline v2 membangun dataset 150 keluarga (1.500 permutasi unik bebas polinomial) dengan split keluarga 70/15/15 (`seed=42`), lalu melatih RF, XGBoost (tuning pada validation), dan MLP pada dataset/fingerprint yang sama. Eksperimen komparatif memuat artefak tersimpan `models/{rf,xgboost,mlp}`, menjalankan lima seed berpasangan (`100–104`) dengan batas 151 evaluasi penuh per run serta studi ablasi 3-arah; evaluasi Mandrill v2 menguji seed 100 (AES/K44 + 3 model v2 pada RGB & Grayscale) lengkap dengan korelasi piksel H/V/D dan verifikasi dekripsi 100% *lossless*. Detail angka aktual dan keterbatasan ilmiah tercantum di [REFACTOR_REPORT.md](REFACTOR_REPORT.md). Semua metrik empiris bukan bukti keamanan kriptografi formal.
 
 ### Cara Mulai Pengembangan di Laptop Masing-Masing
 

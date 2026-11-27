@@ -148,15 +148,21 @@ def test_reconstruct_records_timing_and_cache_counters_and_cli_supports_xgboost(
 
 
 def test_crypto_cheap_features_polynomial_free_and_finite():
+    from src.sbox_metrics import evaluate_sbox
+
     rng = np.random.default_rng(99)
     sbox = rng.permutation(256).astype(np.uint8)
     feats_full = extract_crypto_cheap_features(sbox, include_sac_fp=True)
     feats_walsh = extract_crypto_cheap_features(sbox, include_sac_fp=False)
+    ref = evaluate_sbox(sbox)
 
     assert len(feats_full) > len(feats_walsh) > 0
     assert all(np.isfinite(v) for v in feats_full.values())
     assert all(np.isfinite(v) for v in feats_walsh.values())
     assert "sac_mean" not in feats_walsh and "sac_max_err" not in feats_walsh and "fixed_points" not in feats_walsh
+    assert feats_full["sac_mean"] == pytest.approx(ref["sac_mean"], abs=1e-9)
+    assert feats_full["sac_max_err"] == pytest.approx(ref["sac_max_err"], abs=1e-9)
+    assert feats_full["fixed_points"] == pytest.approx(float(ref["fixed_points"]), abs=1e-9)
 
 
 def test_mandrill_v2_runner_lossless_and_pixel_correlation(tmp_path):

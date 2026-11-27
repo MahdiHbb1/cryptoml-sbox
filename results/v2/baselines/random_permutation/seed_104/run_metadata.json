@@ -13,6 +13,6 @@
   "cache_misses": 1,
   "feature_time_sec": 0,
   "inference_time_sec": 0,
-  "evaluation_time_sec": 0.04857509999965259,
-  "total_time_sec": 0.04900570000063453
+  "evaluation_time_sec": 0.009411099999852013,
+  "total_time_sec": 0.009734600000228966
 }

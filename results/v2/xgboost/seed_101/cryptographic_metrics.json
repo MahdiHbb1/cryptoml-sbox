@@ -2,21 +2,21 @@
   "schema_version": "2.0.0",
   "method": "xgboost",
   "seed": 101,
-  "sbox_sha256": "ab2d9976b8993ec2dc7a0f0c1017d6eb8a15144b34155bd0231b792020da22cd",
+  "sbox_sha256": "de57f8c53d6e74c0eadf3f2e6f3d8a50a70569028355390162c1b6987779ab68",
   "metrics": {
     "bijective": true,
     "balanced": true,
-    "nl": 96,
-    "sac_mean": 0.5,
+    "nl": 98,
+    "sac_mean": 0.5009765625,
     "sac_max_err": 0.078125,
-    "bic_nl": 100,
-    "bic_sac": 0.5000697544642857,
-    "du": 10,
-    "dap": 0.0390625,
-    "lap": 0.125,
-    "fixed_points": 2,
-    "whs_cost": 13.000378842311228,
-    "composite_score": 87.97288842395587
+    "bic_nl": 102,
+    "bic_sac": 0.49986049107142855,
+    "du": 12,
+    "dap": 0.046875,
+    "lap": 0.1171875,
+    "fixed_points": 0,
+    "whs_cost": 13.009820900309455,
+    "composite_score": 89.43126118712739
   },
   "security_note": "Empirical metrics are not evidence of cryptographic security."
 }

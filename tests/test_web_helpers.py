@@ -201,3 +201,5 @@ def test_run_image_simulation_includes_nbcr_metric():
     )
     assert sim["lossless"] is True
     assert 40.0 <= sim["nbcr"] <= 60.0
+    assert sim["pixel_correlation"] is not None
+    assert "mean_abs" in sim["pixel_correlation"]["cipher"]

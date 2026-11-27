@@ -18,5 +18,5 @@
     "whs_cost": 13.01064717123783,
     "composite_score": 89.79101340036668
   },
-  "security_note": "Empirical metrics are not evidence of cryptographic security."
+  "security_note": "Empirical S-Box metrics are not evidence of cryptographic security."
 }

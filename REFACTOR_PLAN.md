@@ -1,7 +1,7 @@
 # REFACTOR_PLAN.md — CryptoML-SBox v2: Polynomial-Free Machine Learning-Guided S-Box Reconstruction
 
-**Status:** Tahap 0 — Audit & Perencanaan Selesai (Branch: `feat/issue18-phase0-audit`)  
-**Baseline `main`:** Commit `7d1e3a4` | **Live Deployment:** `https://cryptoml-sbox.streamlit.app/`  
+**Status:** Seluruh Fase 0–6 Selesai & Terverifikasi (Lihat hasil aktual di `REFACTOR_REPORT.md`)  
+**Baseline `main`:** Commit `7d1e3a4` (tag `v1-legacy-gf256`) | **Live Deployment:** `https://cryptoml-sbox.streamlit.app/`  
 **Koordinasi GitHub Issues:**
 - **Issue #16 (`@NAILAAR22`):** Validasi metrik S-Box, pemisahan Composite Score, dan retraining MLP.
 - **Issue #17 (`@twizzcode`):** Dataset permutasi polynomial-free, split keluarga 70/15/15, Random Forest, dan engine rekonstruksi bersama + baseline non-ML.

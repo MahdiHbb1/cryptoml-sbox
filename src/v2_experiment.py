@@ -123,7 +123,7 @@ def main():
     from scipy.stats import t as student_t
 
     from src.dataset_builder import build_dataset, extract_features
-    from src.ml_reconstruction import reconstruct
+    from src.ml_reconstruction import load_trusted_model, reconstruct
     from src.permutation_v2 import initialize, mutate
     from src.train_xgboost_v2 import extract_crypto_cheap_features
     from src.train_rf_v2 import evaluate
@@ -131,6 +131,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--seeds', type=int, nargs='+', default=[100, 101, 102, 103, 104])
     parser.add_argument('--output', type=Path, default=Path('results/v2/comparative_summary.json'))
+    parser.add_argument('--models-dir', type=Path, default=Path('models'))
     parser.add_argument('--families', type=int, default=150)
     parser.add_argument('--family-size', type=int, default=10)
     parser.add_argument('--iterations', type=int, default=300)
@@ -139,32 +140,45 @@ def main():
     score = lambda box: evaluate(box)['composite_score']
     start = perf_counter()
     rows = build_dataset(args.families, args.family_size, 42, evaluate)
+    import hashlib
+    dataset_sha256 = hashlib.sha256(json.dumps(
+        sorted(rows, key=lambda row: row['sbox_id']),
+        sort_keys=True,
+        allow_nan=False,
+    ).encode()).hexdigest()
+    split_sha256 = hashlib.sha256(json.dumps(sorted(
+        (row['sbox_id'], row['family_id'], row['split']) for row in rows
+    )).encode()).hexdigest()
     report = {'counts': dict(Counter(row['split'] for row in rows)),
               'dataset_sec': perf_counter() - start, 'ablation': {}, 'paired': [],
               'config': {'seeds': args.seeds, 'families': args.families,
                          'family_size': args.family_size, 'iterations': args.iterations,
-                         'max_evaluations': args.budget}}
+                         'max_evaluations': args.budget,
+                         'dataset_sha256': dataset_sha256,
+                         'split_sha256': split_sha256}}
     train = [r for r in rows if r['split'] == 'train']
     test = [r for r in rows if r['split'] == 'test']
-    def frame(boxes, proxy, crypto_ablation=False):
-        if crypto_ablation:
+
+    def frame(boxes, feature_set='perm4'):
+        if feature_set == 'cheap':
             return pd.DataFrame([
-                extract_crypto_cheap_features(box, include_sac_fp=not proxy)
+                extract_crypto_cheap_features(box, include_sac_fp=True)
                 for box in boxes
             ])
-        records = [extract_features(box) for box in boxes]
-        if proxy:
-            for record, box in zip(records, boxes):
-                record['differential_proxy'] = differential_proxy(box)
-        return pd.DataFrame(records)
+        if feature_set == 'proxy':
+            return pd.DataFrame([
+                extract_crypto_cheap_features(box, include_sac_fp=False)
+                for box in boxes
+            ])
+        return pd.DataFrame([extract_features(box) for box in boxes])
 
     y_train = [r['composite_score'] for r in train]
     y_test = [r['composite_score'] for r in test]
-    search_models = {}
-    for proxy in (False, True):
-        x_train, x_test = [frame([np.array(r['sbox'], dtype=np.uint8) for r in group],
-                                 proxy, crypto_ablation=True)
-                           for group in (train, test)]
+    train_boxes = [np.array(r['sbox'], dtype=np.uint8) for r in train]
+    test_boxes = [np.array(r['sbox'], dtype=np.uint8) for r in test]
+    for feature_set in ('perm4', 'proxy', 'cheap'):
+        x_train = frame(train_boxes, feature_set)
+        x_test = frame(test_boxes, feature_set)
         for name, model in [
             ('rf', RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=1)),
             ('xgboost', XGBRegressor(n_estimators=300, max_depth=4, learning_rate=0.05,
@@ -181,25 +195,47 @@ def main():
             inference_sec = perf_counter() - start
             mse = mean_squared_error(y_test, pred)
             ranking = pool_metrics(y_test, pred, min(5, len(y_test)))
-            report['ablation'][f'{name}_{"proxy" if proxy else "cheap"}'] = {
+            report['ablation'][f'{name}_{feature_set}'] = {
                 'mae': mean_absolute_error(y_test, pred), 'mse': mse, 'rmse': mse ** .5,
                 'r2': r2_score(y_test, pred), 'spearman': ranking['spearman'],
                 'top_k_regret': ranking['regret'], 'train_sec': train_sec,
                 'inference_sec': inference_sec,
+                'n_features': int(x_train.shape[1]),
                 'feature_importances': dict(zip(
                     x_train.columns, model.feature_importances_.tolist()))
                 if hasattr(model, 'feature_importances_') else None}
-    x_search_train = frame([np.array(r['sbox'], dtype=np.uint8) for r in train], False)
-    for name, model in [
-        ('rf', RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=1)),
-        ('xgboost', XGBRegressor(n_estimators=300, max_depth=4, learning_rate=0.05,
-                                 objective='reg:squarederror', random_state=42,
-                                 n_jobs=1, verbosity=0)),
-        ('mlp', make_pipeline(StandardScaler(), MLPRegressor(
-            hidden_layer_sizes=(32, 16), max_iter=1000, random_state=42))),
-    ]:
-        model.fit(x_search_train, y_train)
-        search_models[name] = model
+
+    search_models = {}
+    model_sources = {}
+    x_search_train = frame(train_boxes, 'perm4')
+    fallback_specs = {
+        'rf': lambda: RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=1),
+        'xgboost': lambda: XGBRegressor(
+            n_estimators=300, max_depth=4, learning_rate=0.05,
+            objective='reg:squarederror', random_state=42, n_jobs=1, verbosity=0),
+        'mlp': lambda: make_pipeline(StandardScaler(), MLPRegressor(
+            hidden_layer_sizes=(32, 16), max_iter=1000, random_state=42)),
+    }
+    for name in ('rf', 'xgboost', 'mlp'):
+        candidate_dir = args.models_dir / name
+        loaded = None
+        if (candidate_dir / 'manifest.json').is_file():
+            try:
+                model_obj, manifest = load_trusted_model(candidate_dir)
+                if (manifest.get('dataset_sha256') == dataset_sha256
+                        and manifest.get('split_sha256') == split_sha256):
+                    loaded = model_obj
+            except (OSError, ValueError, json.JSONDecodeError):
+                loaded = None
+        if loaded is not None:
+            search_models[name] = loaded
+            model_sources[name] = str(candidate_dir).replace('\\', '/')
+        else:
+            model = fallback_specs[name]()
+            model.fit(x_search_train, y_train)
+            search_models[name] = model
+            model_sources[name] = 'fitted_inline'
+    report['config']['model_sources'] = model_sources
     report['pools'] = []
     for seed in args.seeds:
         rng = np.random.default_rng(seed + 1000)
@@ -211,7 +247,7 @@ def main():
         boxes = list(pool.values())
         actual = [score(box) for box in boxes]
         report['pools'].append({'seed': seed, **{
-            name: pool_metrics(actual, model.predict(frame(boxes, False)), 3)
+            name: pool_metrics(actual, model.predict(frame(boxes, 'perm4')), 3)
             for name, model in search_models.items()}})
         for name, strategy, predict in [('rf', 'top_k', search_models['rf'].predict),
                                         ('xgboost', 'top_k', search_models['xgboost'].predict),

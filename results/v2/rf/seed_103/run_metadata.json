@@ -11,8 +11,8 @@
   "full_evaluations": 151,
   "cache_hits": 0,
   "cache_misses": 151,
-  "feature_time_sec": 0.5714353999997002,
-  "inference_time_sec": 6.449834499999724,
-  "evaluation_time_sec": 12.74556899999925,
-  "total_time_sec": 19.93164919999981
+  "feature_time_sec": 0.14330239999981131,
+  "inference_time_sec": 1.0542190999985905,
+  "evaluation_time_sec": 1.8529866000098991,
+  "total_time_sec": 3.1079009999994014
 }

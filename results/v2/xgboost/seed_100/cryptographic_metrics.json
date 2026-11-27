@@ -2,7 +2,7 @@
   "schema_version": "2.0.0",
   "method": "xgboost",
   "seed": 100,
-  "sbox_sha256": "a72b429b948b619123700cf0684a86a0f05003a858886629ad1792894c4d03af",
+  "sbox_sha256": "dcd749495569993e326d386ce3367b5c61bb8b4fd5adaa93365f9104a4b3b67a",
   "metrics": {
     "bijective": true,
     "balanced": true,
@@ -10,13 +10,13 @@
     "sac_mean": 0.499755859375,
     "sac_max_err": 0.078125,
     "bic_nl": 100,
-    "bic_sac": 0.5023716517857143,
+    "bic_sac": 0.50537109375,
     "du": 10,
     "dap": 0.0390625,
     "lap": 0.125,
     "fixed_points": 2,
-    "whs_cost": 12.988826446253771,
-    "composite_score": 87.89464349911589
+    "whs_cost": 13.019540981053156,
+    "composite_score": 87.80312451344734
   },
-  "security_note": "Empirical metrics are not evidence of cryptographic security."
+  "security_note": "Empirical S-Box metrics are not evidence of cryptographic security."
 }

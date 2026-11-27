@@ -260,5 +260,20 @@
     100,
     15
   ],
-  "sha256": "5bc4b89ecdc67dabdfd12c09facc7c4821bdb78d1f2ee0df6c249fbbb1a6d366"
+  "sha256": "5bc4b89ecdc67dabdfd12c09facc7c4821bdb78d1f2ee0df6c249fbbb1a6d366",
+  "metrics": {
+    "bijective": true,
+    "balanced": true,
+    "nl": 96,
+    "sac_mean": 0.500244140625,
+    "sac_max_err": 0.09375,
+    "bic_nl": 100,
+    "bic_sac": 0.50146484375,
+    "du": 10,
+    "dap": 0.0390625,
+    "lap": 0.125,
+    "fixed_points": 2,
+    "whs_cost": 13.006785140065865,
+    "composite_score": 86.0459498054967
+  }
 }

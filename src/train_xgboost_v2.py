@@ -43,7 +43,7 @@ def extract_crypto_cheap_features(sbox, *, include_sac_fp=True):
 
     if include_sac_fp:
         differences = np.stack([box ^ box[values ^ (1 << bit)] for bit in range(8)])
-        sac = np.unpackbits(differences[:, :, None], axis=2).mean(axis=(0, 1))
+        sac = np.unpackbits(differences[:, :, None], axis=2, bitorder='little').mean(axis=1)
         features.update(
             sac_mean=float(sac.mean()),
             sac_max_err=float(np.max(np.abs(sac - 0.5))),

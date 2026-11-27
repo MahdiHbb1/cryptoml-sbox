@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 
-from src.aes_affine_generator import build_k44_sbox, build_standard_aes_sbox
 from src.mandrill_eval import (
     DEFAULT_IV,
     DEFAULT_KEY,
@@ -15,6 +14,13 @@ from src.mandrill_eval import (
     load_image,
 )
 from src.train_rf_v2 import evaluate
+
+_BASELINES_DIR = Path(__file__).resolve().parents[1] / "data" / "baselines"
+
+
+def _load_baseline_sbox(filename: str) -> np.ndarray:
+    path = _BASELINES_DIR / filename
+    return np.asarray(np.load(path, allow_pickle=False), dtype=np.uint8)
 
 
 def evaluate_mandrill_catalog(sboxes, image_path, modes=("RGB",)):
@@ -40,8 +46,8 @@ def run_v2_mandrill_benchmark(
         Path, (comparative_path, image_path, output_path))
     payload = json.loads(comparative_path.read_text(encoding='utf-8'))
     sboxes = {
-        'AES Standard (FIPS-197)': build_standard_aes_sbox(),
-        'K44 baseline': build_k44_sbox(),
+        'AES Standard (FIPS-197)': _load_baseline_sbox('aes_standard.npy'),
+        'K44 baseline': _load_baseline_sbox('k44.npy'),
     }
     method_titles = {'rf': 'RF', 'xgboost': 'XGBoost', 'mlp': 'MLP'}
     selected = {}

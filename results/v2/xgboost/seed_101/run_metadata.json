@@ -6,13 +6,13 @@
   "iterations": 300,
   "max_evaluations": 151,
   "initial_score": 75.87541843886694,
-  "final_score": 87.97288842395587,
-  "score_delta": 12.097469985088921,
+  "final_score": 89.43126118712739,
+  "score_delta": 13.555842748260446,
   "full_evaluations": 151,
   "cache_hits": 0,
   "cache_misses": 151,
-  "feature_time_sec": 0.1983950999992885,
-  "inference_time_sec": 0.14063079999959882,
-  "evaluation_time_sec": 1.9580929000007927,
-  "total_time_sec": 2.3732512000001407
+  "feature_time_sec": 0.16530990000683232,
+  "inference_time_sec": 0.11521650000031514,
+  "evaluation_time_sec": 1.8095133999922837,
+  "total_time_sec": 2.1446876999998494
 }

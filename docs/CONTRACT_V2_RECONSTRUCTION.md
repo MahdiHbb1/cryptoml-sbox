@@ -81,8 +81,7 @@ File ini **di-commit ke Git** agar RF (#17), MLP (#16), dan XGBoost (#18) memaka
   "disjoint_hash_verified": true,
   "train_ids": ["..."],
   "val_ids": ["..."],
-  "test_ids": ["..."],
-  "split_sha256": "<sha256 dari payload train/val/test ids>"
+  "test_ids": ["..."]
 }
 ```
 
