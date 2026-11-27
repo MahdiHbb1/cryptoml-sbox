@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import time
 from pathlib import Path
 
@@ -11,14 +12,147 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
+from scipy.stats import spearmanr
 
-from src.aes_affine_generator import generate_aes_affine_candidates
-from src.dataset_builder import (
-    extract_fast_features,
-    generate_chaotic_swap_candidates,
-    resolve_evaluator,
-)
-from src.train_xgboost import load_dataset_csv, screen_and_select_best_sbox
+def grouped_ranking_metrics(rows, predicted, k=3):
+    """Measure global and per-family ranking quality without scoring test data twice."""
+    predicted = np.asarray(predicted, dtype=float)
+    if len(rows) != len(predicted) or not 1 <= k:
+        raise ValueError('Expected aligned predictions and a positive Top-K')
+    actual = np.asarray([row['composite_score'] for row in rows], dtype=float)
+    global_rho = None
+    if np.ptp(actual) > 0 and np.ptp(predicted) > 0:
+        value = float(spearmanr(actual, predicted).statistic)
+        global_rho = value if np.isfinite(value) else None
+    pools = {}
+    for row, y, prediction in zip(rows, actual, predicted):
+        pools.setdefault(row['family_id'], [[], []])
+        pools[row['family_id']][0].append(float(y))
+        pools[row['family_id']][1].append(float(prediction))
+    per_pool = []
+    for family_id, (scores, estimates) in sorted(pools.items()):
+        scores, estimates = np.asarray(scores), np.asarray(estimates)
+        rho = None
+        if np.ptp(scores) > 0 and np.ptp(estimates) > 0:
+            value = float(spearmanr(scores, estimates).statistic)
+            rho = value if np.isfinite(value) else None
+        shortlist = np.argsort(-estimates, kind='stable')[:min(k, len(scores))]
+        regret = float(scores.max() - scores[shortlist].max())
+        per_pool.append({
+            'family_id': family_id,
+            'spearman': rho,
+            'topk_regret': regret,
+            'topk_hit': bool(scores[shortlist].max() == scores.max()),
+        })
+    valid_rhos = [pool['spearman'] for pool in per_pool if pool['spearman'] is not None]
+    return {
+        'spearman': global_rho,
+        'spearman_per_pool_mean': float(np.mean(valid_rhos)) if valid_rhos else None,
+        'topk_regret': float(np.mean([pool['topk_regret'] for pool in per_pool])),
+        'topk_hit_rate': float(np.mean([pool['topk_hit'] for pool in per_pool])),
+        'n_pools': len(per_pool),
+        'pool_ranking': per_pool,
+    }
+
+
+def train_grouped_rf(rows, *, n_estimators=300, seed=42, estimator=None):
+    """Fit on the fixed family split; report held-out metrics."""
+    import pandas as pd
+    from src.dataset_builder import FEATURE_NAMES
+
+    groups = {name: [] for name in ('train', 'validation', 'test')}
+    families, ids = {}, set()
+    for row in rows:
+        split = row['split']
+        if split not in groups or families.setdefault(row['family_id'], split) != split:
+            raise ValueError('Invalid split or family leakage')
+        if row['sbox_id'] in ids or set(row['features']) != set(FEATURE_NAMES):
+            raise ValueError('Duplicate S-Box or incompatible feature schema')
+        ids.add(row['sbox_id'])
+        groups[split].append(row)
+    if not groups['train'] or len(groups['test']) < 2:
+        raise ValueError('Need training rows and at least two test rows')
+
+    def arrays(split):
+        items = groups[split]
+        return (pd.DataFrame([row['features'] for row in items], columns=FEATURE_NAMES),
+                np.asarray([row['composite_score'] for row in items], dtype=float))
+
+    x_train, y_train = arrays('train')
+    x_validation, y_validation = arrays('validation')
+    x_test, y_test = arrays('test')
+    model = estimator if estimator is not None else RandomForestRegressor(
+        n_estimators=n_estimators, random_state=seed, n_jobs=1)
+    started = time.perf_counter()
+    model.fit(x_train, y_train)
+    elapsed = time.perf_counter() - started
+    inference_started = time.perf_counter()
+    predicted = model.predict(x_test)
+    inference_time = time.perf_counter() - inference_started
+    validation_prediction = model.predict(x_validation)
+    mse = float(mean_squared_error(y_test, predicted))
+    validation_mse = float(mean_squared_error(y_validation, validation_prediction))
+    metrics = dict(n_train=len(y_train), n_test=len(y_test), mse=mse,
+                       rmse=float(np.sqrt(mse)), mae=float(mean_absolute_error(y_test, predicted)),
+                       r2=float(r2_score(y_test, predicted)), train_time_sec=elapsed,
+                       inference_time_sec=inference_time, n_validation=len(y_validation),
+                       validation_metrics={
+                           'mae': float(mean_absolute_error(y_validation, validation_prediction)),
+                           'mse': validation_mse,
+                           'rmse': float(np.sqrt(validation_mse)),
+                           'r2': float(r2_score(y_validation, validation_prediction)),
+                       })
+    metrics.update(grouped_ranking_metrics(groups['test'], predicted))
+    metrics['validation_metrics'].update(
+        grouped_ranking_metrics(groups['validation'], validation_prediction))
+    if hasattr(model, "feature_importances_"):
+        metrics["feature_importances"] = dict(zip(FEATURE_NAMES, model.feature_importances_.tolist()))
+    return model, metrics
+
+
+def save_grouped_rf(directory, model, metrics, rows, *, kind="rf"):
+    """Export a fitted model and its split manifest to a local artifact directory."""
+    from hashlib import sha256
+
+    import joblib
+    import sklearn
+    import xgboost
+    from src.dataset_builder import FEATURE_NAMES, FEATURE_SCHEMA_VERSION
+
+    if tuple(model.feature_names_in_) != FEATURE_NAMES:
+        raise ValueError('Incompatible feature schema')
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        'schema_version': '2.0.0',
+        'model_kind': kind,
+        'feature_schema_version': FEATURE_SCHEMA_VERSION,
+        'feature_names': list(FEATURE_NAMES),
+        'n_features': len(FEATURE_NAMES),
+        'split_by_sbox': {row['sbox_id']: row['split'] for row in rows},
+        'family_by_sbox': {row['sbox_id']: row['family_id'] for row in rows},
+        'split_sha256': sha256(json.dumps(sorted(
+            (row['sbox_id'], row['family_id'], row['split']) for row in rows
+        )).encode()).hexdigest(),
+        'dataset_sha256': sha256(json.dumps(sorted(rows, key=lambda row: row['sbox_id']),
+                                             sort_keys=True, allow_nan=False).encode()).hexdigest(),
+        'sklearn_version': sklearn.__version__,
+        'xgboost_version': xgboost.__version__ if kind == 'xgboost' else None,
+        'python_version': platform.python_version(),
+        'model_parameters': (
+            {f"mlp__{key}": value for key, value in model.named_steps["mlpregressor"].get_params().items()}
+            if kind == "mlp" else model.get_params(deep=False)
+        ),
+        'metrics': metrics,
+    }
+    for key, value in manifest['model_parameters'].items():
+        if isinstance(value, (float, np.floating)) and not np.isfinite(value):
+            manifest['model_parameters'][key] = None
+    text = json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False)
+    with (directory / f"{kind}.joblib").open('xb') as output:
+        joblib.dump(model, output, compress=3)
+    with (directory / 'manifest.json').open('x', encoding='utf-8') as output:
+        output.write(text + '\n')
 
 
 def train_and_evaluate_rf(
@@ -58,6 +192,9 @@ def train_and_evaluate_rf(
 
 def generate_candidate_pool(n: int, seed: int = 1041) -> list[dict]:
     """Membangkitkan pool seimbang dari jalur Non-AES dan AES-affine."""
+    from src.aes_affine_generator import generate_aes_affine_candidates
+    from src.dataset_builder import generate_chaotic_swap_candidates
+
     if n <= 0:
         raise ValueError("Jumlah kandidat penyaringan harus positif.")
     n_chaotic = n // 2
@@ -78,6 +215,12 @@ def run_rf_pipeline(
     seed: int = 42,
 ) -> dict:
     """Menjalankan pipeline RF lengkap dan menyimpan pemenang serta metrik."""
+    from src.dataset_builder import (
+        extract_fast_features,
+        resolve_evaluator,
+    )
+    from src.train_xgboost import load_dataset_csv, screen_and_select_best_sbox
+
     dataset = Path(dataset_path)
     if not dataset.exists():
         raise FileNotFoundError(

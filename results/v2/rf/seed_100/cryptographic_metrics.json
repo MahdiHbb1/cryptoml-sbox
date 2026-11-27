@@ -1,0 +1,22 @@
+{
+  "schema_version": "2.0.0",
+  "method": "rf",
+  "seed": 100,
+  "sbox_sha256": "910a4d7bde42e55f69401c57cbba8191296317d9a1a3c1fd0427a25fc9e4475d",
+  "metrics": {
+    "bijective": true,
+    "balanced": true,
+    "nl": 98,
+    "sac_mean": 0.50244140625,
+    "sac_max_err": 0.078125,
+    "bic_nl": 100,
+    "bic_sac": 0.5028599330357143,
+    "du": 10,
+    "dap": 0.0390625,
+    "lap": 0.1171875,
+    "fixed_points": 2,
+    "whs_cost": 13.01064717123783,
+    "composite_score": 89.79101340036668
+  },
+  "security_note": "Empirical S-Box metrics are not evidence of cryptographic security."
+}

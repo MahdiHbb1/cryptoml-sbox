@@ -3,8 +3,27 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.train_rf import run_rf_pipeline, train_and_evaluate_rf
+
+
+def test_grouped_ranking_metrics_reports_global_and_per_family_topk():
+    from src.train_rf import grouped_ranking_metrics
+
+    rows = [
+        {'family_id': 1, 'composite_score': 1.0},
+        {'family_id': 1, 'composite_score': 2.0},
+        {'family_id': 1, 'composite_score': 3.0},
+        {'family_id': 2, 'composite_score': 2.0},
+        {'family_id': 2, 'composite_score': 4.0},
+        {'family_id': 2, 'composite_score': 6.0},
+    ]
+    metrics = grouped_ranking_metrics(rows, np.array([1.0, 2.0, 3.0, 2.0, 4.0, 6.0]), k=1)
+    assert metrics['spearman'] == pytest.approx(1.0)
+    assert metrics['spearman_per_pool_mean'] == pytest.approx(1.0)
+    assert metrics['topk_regret'] == 0.0
+    assert metrics['topk_hit_rate'] == 1.0
 
 
 def test_train_and_evaluate_rf_learns_signal_and_reports_importance():

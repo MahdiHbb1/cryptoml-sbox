@@ -1,0 +1,46 @@
+# Issue #17 — Pilot RF vs Top-K acak
+
+Dataset: 150 keluarga × 10 baris, seed 42. RF: 300 pohon, seed 42, fit hanya pada split train. Skor memakai `evaluate_sbox` dan `compute_composite_score` yang ada.
+
+Setiap pasangan memakai titik awal yang sama, mutasi single swap, 50 iterasi, pool 20, dan Top-K 3. Semua run memakai 151 evaluasi penuh, termasuk evaluasi awal.
+
+| Seed | Awal | RF akhir | Acak akhir | RF − acak |
+| --- | ---: | ---: | ---: | ---: |
+| 100 | 75.903 | 87.429 | 89.413 | -1.984 |
+| 101 | 75.875 | 91.088 | 88.062 | +3.026 |
+| 102 | 76.881 | 87.567 | 87.563 | +0.004 |
+| 103 | 84.471 | 93.430 | 89.089 | +4.341 |
+| 104 | 77.534 | 82.721 | 87.510 | -4.789 |
+
+Rata-rata selisih +0.120; simpangan baku sampel 3.701. Pilot lima seed belum menunjukkan keunggulan RF yang konsisten. Anggaran disamakan berdasarkan evaluasi penuh, bukan waktu total. Ini membandingkan hasil akhir pencarian, bukan membuktikan keamanan.
+
+## Diagnostik ranking per pool
+
+20 pool dari seed 200–219, masing-masing 20 mutasi single swap unik dari permutasi awal. Rata-rata Spearman RF: 0.00334 (20 pool valid). Rata-rata selisih skor kandidat terbaik di seluruh pool terhadap kandidat terbaik di shortlist Top-3: 2.57549 untuk RF, 2.10392 untuk ekspektasi pemilihan acak tanpa pengembalian. Lebih kecil lebih baik. Diagnostik ini hanya menguji pool dari state awal, bukan pool selama rekonstruksi.
+
+Ekspor `save_grouped_rf` menyimpan `rf.joblib` dan `manifest.json`. Uji lokal memuat ulang model dan memverifikasi prediksi identik untuk semua 230 sampel test. Muat hanya model Joblib dari sumber tepercaya.
+
+## Jalankan ulang
+
+```bash
+mkdir -p /tmp/opencode
+python -m src.train_rf_v2 /tmp/opencode/issue17-model
+python -m src.ml_reconstruction /tmp/opencode/issue17-rf.json --model /tmp/opencode/issue17-model --seed 100
+python -m src.ml_reconstruction /tmp/opencode/issue17-random.json --seed 100
+```
+
+Gunakan path keluaran baru setiap kali. JSON berisi S-Box awal, akhir dan invers, histori, seed, serta jumlah evaluasi penuh aktual. CLI memakai evaluator dan Composite Score bersama dari branch `v2`.
+
+## MLP pada split keluarga yang sama
+
+Tambahkan `--model mlp` pada perintah training dan gunakan direktori keluaran baru. CLI rekonstruksi memilih RF atau MLP dari manifest. Pada dataset 1.500 baris (1.050 train, 220 validation, 230 test), MLP mencatat MAE 3,8210, MSE 22,0626, RMSE 4,6971, dan R² −0,0677. Optimizer mencapai batas 1.000 iterasi tanpa konvergensi. Pada seed pencarian 100, MLP mencapai skor 86,046 dalam 151 evaluasi penuh. Ini satu smoke run, bukan hasil komparatif final.
+
+`--strategy random_permutation` hanya mengevaluasi titik awal. `random_search` mengambil permutasi independen; `random_swap` menguji satu swap per iterasi. Anggaran evaluasi adalah batas atas: kedua metode bisa berhenti lebih awal karena batas iterasi. `top_k` tanpa model memakai shortlist acak.
+
+## Ablation dan eksperimen berpasangan
+
+Reproduksi: `python -m src.v2_experiment`. Data mentah: [JSON](issue-16-17-results.json). Dataset 1.500 baris dibangun dalam 36,07 detik. Proxy menghitung frekuensi diferensial maksimum pada delapan mask input satu bit, bukan DU penuh. Pada 230 baris test, RMSE RF naik dari 4,97 ke 5,53 dan MLP dari 4,70 ke 5,70 setelah proxy ditambahkan. Kedua varian MLP mencapai batas iterasi tanpa konvergen. Konfigurasi model tidak dipilih dari test.
+
+Pada lima seed, skor akhir rata-rata: RF 88,45; MLP 87,99; Top-K acak 88,33; random search 87,75; random swap 89,29. Masing-masing memakai 151 evaluasi per seed. Random permutation hanya mencatat skor awal (78,13; satu evaluasi). Tidak ada bukti model mengungguli baseline terbaik. Lima seed belum cukup untuk klaim umum.
+
+LAP evaluator adalah bias absolut maksimum (`max_w / 512`); probabilitas kecocokan terbaik adalah `0.5 + LAP`. Composite Score adalah skor heuristik, bukan probabilitas atau bukti keamanan.

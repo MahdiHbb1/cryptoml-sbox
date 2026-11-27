@@ -1,0 +1,67 @@
+# Konfigurasi Phase A — Dataset Permutasi & Training Model (v2 Polynomial-Free)
+schema_version: "2.0.0"
+random_seed: 42
+
+dataset:
+  output_csv: "datasets/sbox_perm_dataset.csv"
+  split_manifest: "datasets/split_manifest.json"
+  # Mulai dari dev (1500) untuk profiling, lalu naikkan ke medium/full sesuai kapasitas Kaggle/lokal
+  presets:
+    dev:
+      n_samples_target: 1500
+      n_families: 150
+    medium:
+      n_samples_target: 5000
+      n_families: 500
+    full:
+      n_samples_target: 10000
+      n_families: 1000
+  active_preset: "dev"
+  deduplicate_by_permutation_bytes: true
+  allow_legacy_generators: false  # HARD RULE: dilarang polynomial, GF(2^8) inverse, affine, chaotic
+
+split:
+  strategy: "group_shuffle_by_family"
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  seed: 42
+  lock_test_set: true
+
+features:
+  version: "2.0.0"
+  exclude_full_metrics: true
+  ablation_sets:
+    - "full_cheap"        # fitur Walsh parsial + fitur murah SAC/FP
+    - "partial_walsh_only" # tanpa suku SAC/FP eksak untuk audit overlap dengan Composite Score
+
+models:
+  output_dir: "models"
+  compression_level: 3
+  random_forest:
+    artifact: "models/rf/rf.joblib"
+    metadata: "models/rf/manifest.json"
+    param_grid:
+      n_estimators: [200, 300, 500]
+      max_depth: [null, 12, 20]
+      min_samples_leaf: [1, 2, 4]
+  xgboost:
+    artifact: "models/xgboost/xgboost.joblib"
+    metadata: "models/xgboost/manifest.json"
+    param_grid:
+      n_estimators: [150, 300, 500]
+      max_depth: [3, 5, 7]
+      learning_rate: [0.03, 0.05, 0.1]
+      subsample: [0.8, 1.0]
+      colsample_bytree: [0.8, 1.0]
+      reg_lambda: [1.0, 5.0]
+  mlp:
+    artifact: "models/mlp/mlp.joblib"
+    metadata: "models/mlp/manifest.json"
+    scale_features_train_only: true
+    scale_target_train_only: true
+    param_grid:
+      hidden_layer_sizes: [[128, 64], [256, 128], [128, 64, 32]]
+      alpha: [0.0001, 0.001, 0.01]
+      learning_rate_init: [0.001, 0.003]
+      max_iter: [500]

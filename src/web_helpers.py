@@ -56,6 +56,15 @@ def _resolve_nbcr_fn():
     return nbcr_fn
 
 
+def _resolve_pixel_corr_fn():
+    """Otomatis memakai src.image_metrics.pixel_correlation bila tersedia."""
+    try:
+        from src.image_metrics import pixel_correlation as corr_fn  # type: ignore
+    except ImportError:
+        corr_fn = None
+    return corr_fn
+
+
 def load_mandrill_benchmark_table(
     json_path: str | Path = Path("results") / "mandrill_metrics.json",
 ) -> tuple[dict, pd.DataFrame]:
@@ -64,24 +73,41 @@ def load_mandrill_benchmark_table(
     if not payload or not isinstance(payload.get("runs"), list):
         return {}, pd.DataFrame()
 
+    has_corr = any(isinstance(run.get("pixel_correlation"), dict) for run in payload["runs"])
+    has_single_sec = any("encrypt_single_sec" in run for run in payload["runs"])
+    has_variant = any(isinstance(run.get("cipher_variant"), dict) for run in payload["runs"])
+
     rows = []
     for run in payload["runs"]:
         m = run.get("metrics", {})
         mode = "Grayscale" if run.get("image_mode") == "GRAY" else str(run.get("image_mode", ""))
-        rows.append(
-            {
-                "S-Box": str(run.get("sbox", "")),
-                "Mode": mode,
-                "Entropy Plain": round(float(m.get("entropy_plain", 0.0)), 5),
-                "Entropy Cipher": round(float(m.get("entropy_cipher", 0.0)), 5),
-                "Chi-Square": round(float(m.get("hist_chi2", 0.0)), 2),
-                "p-value": round(float(m.get("hist_p_value", 0.0)), 4),
-                "NPCR (%)": round(float(m.get("npcr", 0.0)), 4),
-                "UACI (%)": round(float(m.get("uaci", 0.0)), 4),
-                "NBCR (%)": round(float(run.get("nbcr", 0.0)), 4),
-                "Lossless": "Ya" if run.get("lossless") else "Tidak",
-            }
-        )
+        row = {
+            "S-Box": str(run.get("sbox", "")),
+            "Mode": mode,
+            "Entropy Plain": round(float(m.get("entropy_plain", 0.0)), 5),
+            "Entropy Cipher": round(float(m.get("entropy_cipher", 0.0)), 5),
+            "Chi-Square": round(float(m.get("hist_chi2", 0.0)), 2),
+            "p-value": round(float(m.get("hist_p_value", 0.0)), 4),
+            "NPCR (%)": round(float(m.get("npcr", 0.0)), 4),
+            "UACI (%)": round(float(m.get("uaci", 0.0)), 4),
+            "NBCR (%)": round(float(run.get("nbcr", 0.0)), 4),
+        }
+        if has_corr:
+            corr = run.get("pixel_correlation") or {}
+            plain_c = corr.get("plain") or {}
+            cipher_c = corr.get("cipher") or {}
+            row["Corr Plain"] = round(float(plain_c.get("mean_abs", 0.0)), 5)
+            row["Corr Cipher"] = round(float(cipher_c.get("mean_abs", 0.0)), 6)
+            row["Corr H"] = round(float(cipher_c.get("horizontal", 0.0)), 5)
+            row["Corr V"] = round(float(cipher_c.get("vertical", 0.0)), 5)
+            row["Corr D"] = round(float(cipher_c.get("diagonal", 0.0)), 5)
+        if has_single_sec:
+            row["Waktu Enc (s)"] = round(float(run.get("encrypt_single_sec", 0.0)), 2)
+        if has_variant:
+            variant = run.get("cipher_variant") or {}
+            row["Varian Cipher"] = str(variant.get("cipher_label", "-"))
+        row["Lossless"] = "Ya" if run.get("lossless") else "Tidak"
+        rows.append(row)
     return payload, pd.DataFrame(rows)
 
 
@@ -175,6 +201,32 @@ def list_available_sboxes(results_dir: str | Path = Path("results")) -> dict[str
             "poly": poly,
             "constant": constant,
             "notes": notes,
+        }
+
+    v2_labels = {'rf': 'RF', 'xgboost': 'XGBoost', 'mlp': 'MLP'}
+    for artifact_path in sorted((res_dir / "v2").glob("*/seed_*/final_sbox.json")):
+        try:
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Invalid v2 S-Box artifact {artifact_path}: {exc}") from exc
+        method = artifact.get("method")
+        seed = artifact.get("seed")
+        if (artifact.get("schema_version") != "2.0.0"
+                or method not in v2_labels
+                or artifact_path.parent.parent.name != method
+                or artifact_path.parent.name != f"seed_{seed}"):
+            raise ValueError(f"Incompatible v2 S-Box artifact: {artifact_path}")
+        sbox = validate_sbox(np.asarray(artifact.get("sbox"), dtype=np.uint8))
+        name = f"S-Box {v2_labels[method]} v2 (seed {seed})"
+        catalog[name] = {
+            "sbox": sbox,
+            "owner": f"CryptoML-SBox v2 ({v2_labels[method]})",
+            "status": "Model ML v2",
+            "method": method,
+            "seed": seed,
+            "poly": None,
+            "constant": None,
+            "notes": f"Rekonstruksi polynomial-free v2 ({v2_labels[method]}), seed {seed}, schema {artifact['schema_version']}.",
         }
     return catalog
 
@@ -411,6 +463,13 @@ def run_image_simulation(
         xor_bits = np.unpackbits(np.bitwise_xor(c1_vis, c2_vis).reshape(-1))
         nbcr_val = float(xor_bits.mean() * 100.0) if xor_bits.size else 0.0
 
+    corr_fn = _resolve_pixel_corr_fn()
+    pixel_corr = (
+        {"plain": corr_fn(plain), "cipher": corr_fn(c1_vis)}
+        if corr_fn is not None and plain.shape[0] >= 2 and plain.shape[1] >= 2
+        else None
+    )
+
     return {
         "plain": plain,
         "cipher": c1_vis,
@@ -419,5 +478,6 @@ def run_image_simulation(
         "encrypt_sec": float(encrypt_sec),
         "decrypt_sec": float(decrypt_sec),
         "nbcr": nbcr_val,
+        "pixel_correlation": pixel_corr,
         "metrics": metrics,
     }

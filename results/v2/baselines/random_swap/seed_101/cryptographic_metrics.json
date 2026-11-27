@@ -1,0 +1,22 @@
+{
+  "schema_version": "2.0.0",
+  "method": "random_swap",
+  "seed": 101,
+  "sbox_sha256": "b0e7df52bdce9d997b27dc05de4877665adb610fc795f90b510565af03898598",
+  "metrics": {
+    "bijective": true,
+    "balanced": true,
+    "nl": 96,
+    "sac_mean": 0.5,
+    "sac_max_err": 0.078125,
+    "bic_nl": 100,
+    "bic_sac": 0.49986049107142855,
+    "du": 10,
+    "dap": 0.0390625,
+    "lap": 0.125,
+    "fixed_points": 1,
+    "whs_cost": 12.988797812947634,
+    "composite_score": 89.47137484149548
+  },
+  "security_note": "Empirical metrics are not evidence of cryptographic security."
+}

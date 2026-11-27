@@ -1,0 +1,18 @@
+{
+  "schema_version": "2.0.0",
+  "method": "xgboost",
+  "seed": 104,
+  "strategy": "top_k",
+  "iterations": 300,
+  "max_evaluations": 151,
+  "initial_score": 77.53367260332261,
+  "final_score": 88.08263000377441,
+  "score_delta": 10.548957400451798,
+  "full_evaluations": 151,
+  "cache_hits": 0,
+  "cache_misses": 151,
+  "feature_time_sec": 0.15061799999966752,
+  "inference_time_sec": 0.10237310000411526,
+  "evaluation_time_sec": 1.729653700009294,
+  "total_time_sec": 2.0409960000015417
+}

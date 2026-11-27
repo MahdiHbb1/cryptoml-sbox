@@ -1,0 +1,78 @@
+# Konfigurasi Phase B — ML-Guided Iterative S-Box Reconstruction & Eksperimen Komparatif
+schema_version: "2.0.0"
+default_seed: 42
+
+# Daftar seed untuk eksperimen komparatif berpasangan (Issue #18)
+experiment_seeds: [42, 101, 202, 303, 404]
+
+# Mode rekonstruksi sesuai Master Plan §14
+modes:
+  fast:
+    n_iterations: 50
+    candidates_per_iter: 20
+    top_k_eval: 3
+    max_full_evals: 151       # 1 init + 50 * 3
+    patience: 15
+    use_for: "Streamlit live demo & smoke test"
+  standard:
+    n_iterations: 200
+    candidates_per_iter: 50
+    top_k_eval: 5
+    max_full_evals: 1001      # 1 init + 200 * 5
+    patience: 40
+    use_for: "Pengembangan & eksperimen multi-seed lokal"
+  research:
+    n_iterations: 500
+    candidates_per_iter: 100
+    top_k_eval: 5
+    max_full_evals: 2501      # 1 init + 500 * 5
+    patience: 80
+    use_for: "Eksperimen final laporan (lokal/Kaggle)"
+
+mutations:
+  operators:
+    single_swap:
+      enabled: true
+      weight: 0.45
+    multi_swap:
+      enabled: true
+      weight: 0.25
+      min_swaps: 2
+      max_swaps: 4
+    three_cycle:
+      enabled: true
+      weight: 0.20
+    segment_reversal:
+      enabled: true
+      weight: 0.10
+      min_length: 3
+      max_length: 12
+  adaptive_mutation:
+    enabled: true
+    stagnation_threshold: 10
+    escalate_max_swaps: 6
+  restart:
+    enabled: false
+    stagnation_limit: 50
+
+acceptance:
+  rule: "strict_actual_improvement"  # hanya menerima kandidat berdasarkan skor aktual evaluate_sbox
+  track_global_best: true
+  deduplicate_candidates: true
+  enable_eval_cache: true
+
+methods:
+  baselines:
+    - "initial_permutation"
+    - "random_search"
+    - "random_swap"
+    - "random_topk"
+  ml_guided:
+    - "rf"
+    - "xgboost"
+    - "mlp"
+
+outputs:
+  root_dir: "results/v2"
+  mandrill_image: "data/mandril_color.jpg"
+  mandrill_cipher_mode: "CBC2"

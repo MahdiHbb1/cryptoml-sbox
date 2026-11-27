@@ -13,10 +13,14 @@ env/
 # Jupyter
 .ipynb_checkpoints/
 
-# Generated large datasets & model weights (keep final S-box .npy and logs)
+# Generated large datasets & temporary model weights (keep tracked v2 models & split manifest)
 data/sbox_dataset.csv
+datasets/*.csv
+!datasets/split_manifest.json
 *.pkl
 *.joblib
+!models/*.joblib
+!models/**/*.joblib
 *.h5
 
 # OS & Editors
